@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 
-namespace SkillForge.EditorTools
+namespace SkillCreator.EditorTools
 {
     /// <summary>
     /// 버프 데이터를 JSON 으로 편집하는 EditorWindow.
@@ -10,7 +10,7 @@ namespace SkillForge.EditorTools
     /// </summary>
     public sealed class BuffEditorWindow : EditorWindow
     {
-        private string _path = SkillForgeEditorUtil.DefaultBuffsPath;
+        private string _path = SkillCreatorEditorUtil.DefaultBuffsPath;
 
         private List<BuffDefinition> _buffs = new List<BuffDefinition>();
         private int _selected = -1;
@@ -70,7 +70,7 @@ namespace SkillForge.EditorTools
         private void DrawList()
         {
             EditorGUILayout.BeginVertical(GUILayout.Width(220));
-            SkillForgeEditorUtil.HeaderRow($"Buffs ({_buffs.Count})");
+            SkillCreatorEditorUtil.HeaderRow($"Buffs ({_buffs.Count})");
 
             _listScroll = EditorGUILayout.BeginScrollView(_listScroll);
             for (int i = 0; i < _buffs.Count; i++)
@@ -89,7 +89,7 @@ namespace SkillForge.EditorTools
                 DuplicateSelected();
             EditorGUILayout.EndHorizontal();
 
-            if (SkillForgeEditorUtil.DangerButton("- Remove", 220))
+            if (SkillCreatorEditorUtil.DangerButton("- Remove", 220))
                 RemoveSelected();
 
             EditorGUILayout.EndVertical();
@@ -110,13 +110,13 @@ namespace SkillForge.EditorTools
 
             BuffDefinition buff = _buffs[_selected];
 
-            SkillForgeEditorUtil.HeaderRow("기본 정보");
+            SkillCreatorEditorUtil.HeaderRow("기본 정보");
             buff.id = EditorGUILayout.TextField("Id", buff.id);
             buff.name = EditorGUILayout.TextField("Name", buff.name);
             buff.duration = EditorGUILayout.FloatField("Duration", buff.duration);
             buff.maxStack = EditorGUILayout.IntField("Max Stack", buff.maxStack);
-            buff.stackPolicy = SkillForgeEditorUtil.PopupString("Stack Policy", buff.stackPolicy, StackPolicy.Supported);
-            buff.refreshPolicy = SkillForgeEditorUtil.PopupString("Refresh Policy", buff.refreshPolicy, RefreshPolicy.Supported);
+            buff.stackPolicy = SkillCreatorEditorUtil.PopupString("Stack Policy", buff.stackPolicy, StackPolicy.Supported);
+            buff.refreshPolicy = SkillCreatorEditorUtil.PopupString("Refresh Policy", buff.refreshPolicy, RefreshPolicy.Supported);
 
             DrawStatModifiers(buff);
             DrawEffectList("주기 효과 (periodic)", buff.periodicEffects, true);
@@ -129,7 +129,7 @@ namespace SkillForge.EditorTools
 
         private void DrawStatModifiers(BuffDefinition buff)
         {
-            SkillForgeEditorUtil.HeaderRow($"스탯 수정자 ({buff.statModifiers.Count})");
+            SkillCreatorEditorUtil.HeaderRow($"스탯 수정자 ({buff.statModifiers.Count})");
 
             for (int i = 0; i < buff.statModifiers.Count; i++)
             {
@@ -137,7 +137,7 @@ namespace SkillForge.EditorTools
                 EditorGUILayout.BeginVertical(EditorStyles.helpBox);
                 EditorGUILayout.BeginHorizontal();
                 m.statKey = EditorGUILayout.TextField("Stat Key", m.statKey);
-                if (SkillForgeEditorUtil.DangerButton("X", 24))
+                if (SkillCreatorEditorUtil.DangerButton("X", 24))
                 {
                     buff.statModifiers.RemoveAt(i);
                     EditorGUILayout.EndHorizontal();
@@ -145,7 +145,7 @@ namespace SkillForge.EditorTools
                     break;
                 }
                 EditorGUILayout.EndHorizontal();
-                m.modifierType = SkillForgeEditorUtil.PopupString("Modifier Type", m.modifierType, StatModifierType.Supported);
+                m.modifierType = SkillCreatorEditorUtil.PopupString("Modifier Type", m.modifierType, StatModifierType.Supported);
                 m.value = EditorGUILayout.FloatField("Value", m.value);
                 EditorGUILayout.EndVertical();
             }
@@ -156,15 +156,15 @@ namespace SkillForge.EditorTools
 
         private void DrawEffectList(string header, List<EffectDefinition> effects, bool showInterval)
         {
-            SkillForgeEditorUtil.HeaderRow($"{header} ({effects.Count})");
+            SkillCreatorEditorUtil.HeaderRow($"{header} ({effects.Count})");
 
             for (int i = 0; i < effects.Count; i++)
             {
                 EffectDefinition e = effects[i];
                 EditorGUILayout.BeginVertical(EditorStyles.helpBox);
                 EditorGUILayout.BeginHorizontal();
-                e.type = SkillForgeEditorUtil.PopupString("Type", e.type, EffectType.Supported);
-                if (SkillForgeEditorUtil.DangerButton("X", 24))
+                e.type = SkillCreatorEditorUtil.PopupString("Type", e.type, EffectType.Supported);
+                if (SkillCreatorEditorUtil.DangerButton("X", 24))
                 {
                     effects.RemoveAt(i);
                     EditorGUILayout.EndHorizontal();

@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace SkillForge
+namespace SkillCreator
 {
     /// <summary>
     /// 스킬/버프 시스템이 다루는 전투 유닛의 통합 경계.

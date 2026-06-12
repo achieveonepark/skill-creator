@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace SkillForge
+namespace SkillCreator
 {
     /// <summary>
     /// JSON 문자열을 정의 객체로 변환한다.

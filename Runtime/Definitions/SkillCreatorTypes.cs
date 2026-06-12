@@ -1,4 +1,4 @@
-namespace SkillForge
+namespace SkillCreator
 {
     /// <summary>타겟팅 타입 상수. MVP 4종.</summary>
     public static class TargetingType

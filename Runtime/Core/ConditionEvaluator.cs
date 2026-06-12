@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace SkillForge
+namespace SkillCreator
 {
     /// <summary>
     /// 조건 목록을 AND 로 검사한다. 하나라도 실패하면 false.

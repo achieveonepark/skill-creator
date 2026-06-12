@@ -1,6 +1,6 @@
 using System;
 
-namespace SkillForge
+namespace SkillCreator
 {
     /// <summary>
     /// 스킬 또는 버프가 실제로 수행하는 효과의 정적 데이터.

@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace SkillForge
+namespace SkillCreator
 {
     /// <summary>
     /// 타겟팅 정의를 기반으로 실제 대상 목록을 계산한다.

@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace SkillForge
+namespace SkillCreator
 {
     /// <summary>
     /// 스킬 실행 결과를 기록하는 통합 경계. Combat Log / Preview Simulator 에서 활용한다.

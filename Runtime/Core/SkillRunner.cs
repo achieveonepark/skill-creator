@@ -3,7 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace SkillForge
+namespace SkillCreator
 {
     public enum SkillUseStatus
     {

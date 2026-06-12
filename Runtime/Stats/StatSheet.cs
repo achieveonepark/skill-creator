@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace SkillForge
+namespace SkillCreator
 {
     /// <summary>
     /// 기본 스탯 + 수정자(modifier)를 관리한다.

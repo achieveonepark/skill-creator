@@ -1,8 +1,8 @@
 {
-  "name": "SkillForge.Samples",
-  "rootNamespace": "SkillForge.Samples",
+  "name": "SkillCreator.Samples",
+  "rootNamespace": "SkillCreator.Samples",
   "references": [
-    "SkillForge.Runtime"
+    "SkillCreator.Runtime"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

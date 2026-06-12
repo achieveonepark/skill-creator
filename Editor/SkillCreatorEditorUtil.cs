@@ -1,10 +1,10 @@
 using UnityEditor;
 using UnityEngine;
 
-namespace SkillForge.EditorTools
+namespace SkillCreator.EditorTools
 {
     /// <summary>에디터 창들이 공유하는 IMGUI 보조 함수.</summary>
-    internal static class SkillForgeEditorUtil
+    internal static class SkillCreatorEditorUtil
     {
         public const string DefaultSkillsPath = "Assets/GameData/Skills/skills.json";
         public const string DefaultBuffsPath = "Assets/GameData/Buffs/buffs.json";

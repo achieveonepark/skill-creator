@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace SkillForge
+namespace SkillCreator
 {
     /// <summary>
     /// JSON 등에서 로드한 스킬/버프 정의를 Dictionary 로 보관하는 인메모리 데이터베이스.

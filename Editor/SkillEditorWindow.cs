@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 
-namespace SkillForge.EditorTools
+namespace SkillCreator.EditorTools
 {
     /// <summary>
     /// 스킬 데이터를 JSON 으로 편집하는 EditorWindow.
@@ -10,8 +10,8 @@ namespace SkillForge.EditorTools
     /// </summary>
     public sealed class SkillEditorWindow : EditorWindow
     {
-        private string _path = SkillForgeEditorUtil.DefaultSkillsPath;
-        private string _buffsPath = SkillForgeEditorUtil.DefaultBuffsPath;
+        private string _path = SkillCreatorEditorUtil.DefaultSkillsPath;
+        private string _buffsPath = SkillCreatorEditorUtil.DefaultBuffsPath;
 
         private List<SkillDefinition> _skills = new List<SkillDefinition>();
         private List<BuffDefinition> _buffs = new List<BuffDefinition>();
@@ -71,7 +71,7 @@ namespace SkillForge.EditorTools
         private void DrawList()
         {
             EditorGUILayout.BeginVertical(GUILayout.Width(220));
-            SkillForgeEditorUtil.HeaderRow($"Skills ({_skills.Count})");
+            SkillCreatorEditorUtil.HeaderRow($"Skills ({_skills.Count})");
 
             _listScroll = EditorGUILayout.BeginScrollView(_listScroll);
             for (int i = 0; i < _skills.Count; i++)
@@ -90,7 +90,7 @@ namespace SkillForge.EditorTools
                 DuplicateSelected();
             EditorGUILayout.EndHorizontal();
 
-            if (SkillForgeEditorUtil.DangerButton("- Remove", 220))
+            if (SkillCreatorEditorUtil.DangerButton("- Remove", 220))
                 RemoveSelected();
 
             EditorGUILayout.EndVertical();
@@ -111,15 +111,15 @@ namespace SkillForge.EditorTools
 
             SkillDefinition skill = _skills[_selected];
 
-            SkillForgeEditorUtil.HeaderRow("기본 정보");
+            SkillCreatorEditorUtil.HeaderRow("기본 정보");
             skill.id = EditorGUILayout.TextField("Id", skill.id);
             skill.name = EditorGUILayout.TextField("Name", skill.name);
             skill.cooldown = EditorGUILayout.FloatField("Cooldown", skill.cooldown);
             skill.castTime = EditorGUILayout.FloatField("Cast Time", skill.castTime);
 
-            SkillForgeEditorUtil.HeaderRow("타겟팅");
+            SkillCreatorEditorUtil.HeaderRow("타겟팅");
             skill.targeting ??= new TargetingDefinition();
-            skill.targeting.type = SkillForgeEditorUtil.PopupString("Type", skill.targeting.type, TargetingType.Supported);
+            skill.targeting.type = SkillCreatorEditorUtil.PopupString("Type", skill.targeting.type, TargetingType.Supported);
             skill.targeting.range = EditorGUILayout.FloatField("Range", skill.targeting.range);
             skill.targeting.radius = EditorGUILayout.FloatField("Radius", skill.targeting.radius);
             skill.targeting.angle = EditorGUILayout.FloatField("Angle", skill.targeting.angle);
@@ -134,15 +134,15 @@ namespace SkillForge.EditorTools
 
         private void DrawConditions(SkillDefinition skill)
         {
-            SkillForgeEditorUtil.HeaderRow($"조건 ({skill.conditions.Count})");
+            SkillCreatorEditorUtil.HeaderRow($"조건 ({skill.conditions.Count})");
 
             for (int i = 0; i < skill.conditions.Count; i++)
             {
                 ConditionDefinition c = skill.conditions[i];
                 EditorGUILayout.BeginVertical(EditorStyles.helpBox);
                 EditorGUILayout.BeginHorizontal();
-                c.type = SkillForgeEditorUtil.PopupString("Type", c.type, ConditionType.Supported);
-                if (SkillForgeEditorUtil.DangerButton("X", 24))
+                c.type = SkillCreatorEditorUtil.PopupString("Type", c.type, ConditionType.Supported);
+                if (SkillCreatorEditorUtil.DangerButton("X", 24))
                 {
                     skill.conditions.RemoveAt(i);
                     EditorGUILayout.EndHorizontal();
@@ -161,15 +161,15 @@ namespace SkillForge.EditorTools
 
         private void DrawEffects(SkillDefinition skill)
         {
-            SkillForgeEditorUtil.HeaderRow($"효과 ({skill.effects.Count})");
+            SkillCreatorEditorUtil.HeaderRow($"효과 ({skill.effects.Count})");
 
             for (int i = 0; i < skill.effects.Count; i++)
             {
                 EffectDefinition e = skill.effects[i];
                 EditorGUILayout.BeginVertical(EditorStyles.helpBox);
                 EditorGUILayout.BeginHorizontal();
-                e.type = SkillForgeEditorUtil.PopupString("Type", e.type, EffectType.Supported);
-                if (SkillForgeEditorUtil.DangerButton("X", 24))
+                e.type = SkillCreatorEditorUtil.PopupString("Type", e.type, EffectType.Supported);
+                if (SkillCreatorEditorUtil.DangerButton("X", 24))
                 {
                     skill.effects.RemoveAt(i);
                     EditorGUILayout.EndHorizontal();

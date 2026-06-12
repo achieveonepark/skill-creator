@@ -1,6 +1,6 @@
 using System;
 
-namespace SkillForge
+namespace SkillCreator
 {
     /// <summary>
     /// 타겟을 찾는 방식에 대한 정적 데이터.

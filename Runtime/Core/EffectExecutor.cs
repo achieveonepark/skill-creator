@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace SkillForge
+namespace SkillCreator
 {
     /// <summary>
     /// 효과 정의를 실제 런타임 동작으로 변환한다.

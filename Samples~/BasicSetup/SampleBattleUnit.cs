@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace SkillForge.Samples
+namespace SkillCreator.Samples
 {
     /// <summary>
     /// IBattleUnit 의 최소 구현 예제. 실제 프로젝트에서는 자신의 캐릭터 클래스가 IBattleUnit 을 구현하면 된다.

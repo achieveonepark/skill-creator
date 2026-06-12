@@ -1,12 +1,8 @@
 {
-  "name": "SkillForge.Editor",
-  "rootNamespace": "SkillForge.EditorTools",
-  "references": [
-    "SkillForge.Runtime"
-  ],
-  "includePlatforms": [
-    "Editor"
-  ],
+  "name": "SkillCreator.Runtime",
+  "rootNamespace": "SkillCreator",
+  "references": [],
+  "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,
   "overrideReferences": false,

@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace SkillForge
+namespace SkillCreator
 {
     /// <summary>
     /// 스킬/버프 데이터의 정합성을 검사한다.

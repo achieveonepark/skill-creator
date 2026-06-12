@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace SkillForge
+namespace SkillCreator
 {
     /// <summary>
     /// 한 유닛이 보유한 버프 인스턴스 목록. 유닛마다 하나씩 가진다.

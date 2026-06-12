@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace SkillForge
+namespace SkillCreator
 {
     /// <summary>VFX 재생 통합 경계. play_vfx 효과가 사용한다.</summary>
     public interface IVfxPlayer

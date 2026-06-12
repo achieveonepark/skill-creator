@@ -1,6 +1,6 @@
 using System;
 
-namespace SkillForge
+namespace SkillCreator
 {
     /// <summary>
     /// 효과 실행 전 검사하는 조건의 정적 데이터.

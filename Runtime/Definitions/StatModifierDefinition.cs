@@ -1,6 +1,6 @@
 using System;
 
-namespace SkillForge
+namespace SkillCreator
 {
     /// <summary>
     /// 스탯 변경 효과의 정적 데이터.

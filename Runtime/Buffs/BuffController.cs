@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace SkillForge
+namespace SkillCreator
 {
     /// <summary>
     /// 버프의 적용/스택/갱신/주기효과/해제 및 스탯 수정자 적용을 총괄한다.

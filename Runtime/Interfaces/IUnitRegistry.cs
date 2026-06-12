@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace SkillForge
+namespace SkillCreator
 {
     /// <summary>
     /// 광역 타겟팅(circle / cone)을 위해 전투 중인 유닛들을 조회하는 통합 경계.

@@ -3,7 +3,7 @@ using System.IO;
 using UnityEditor;
 using UnityEngine;
 
-namespace SkillForge.EditorTools
+namespace SkillCreator.EditorTools
 {
     /// <summary>
     /// 정의 리스트를 JSON 파일로 저장/로드한다. 프로젝트 내 경로면 AssetDatabase 를 갱신한다.

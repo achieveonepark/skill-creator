@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace SkillForge
+namespace SkillCreator
 {
     /// <summary>
     /// 스킬의 정적 데이터. JSON 으로 직렬화/역직렬화된다.

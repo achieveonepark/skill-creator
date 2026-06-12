@@ -1,7 +1,7 @@
 using System.IO;
 using UnityEngine;
 
-namespace SkillForge.Samples
+namespace SkillCreator.Samples
 {
     /// <summary>
     /// Skill Creator 를 씬에서 구동하는 부트스트랩 예제.

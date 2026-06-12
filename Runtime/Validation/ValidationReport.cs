@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace SkillForge
+namespace SkillCreator
 {
     public enum ValidationSeverity
     {

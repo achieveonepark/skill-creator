@@ -3,7 +3,7 @@ using System.Text;
 using UnityEditor;
 using UnityEngine;
 
-namespace SkillForge.EditorTools
+namespace SkillCreator.EditorTools
 {
     /// <summary>
     /// 실제 전투 없이 스킬을 시뮬레이션해 예상 데미지/힐/버프 결과를 미리 본다.
@@ -11,8 +11,8 @@ namespace SkillForge.EditorTools
     /// </summary>
     public sealed class PreviewSimulatorWindow : EditorWindow
     {
-        private string _skillsPath = SkillForgeEditorUtil.DefaultSkillsPath;
-        private string _buffsPath = SkillForgeEditorUtil.DefaultBuffsPath;
+        private string _skillsPath = SkillCreatorEditorUtil.DefaultSkillsPath;
+        private string _buffsPath = SkillCreatorEditorUtil.DefaultBuffsPath;
 
         private float _casterAttack = 100f;
         private float _targetDefense = 0f;
@@ -32,11 +32,11 @@ namespace SkillForge.EditorTools
 
         private void OnGUI()
         {
-            SkillForgeEditorUtil.HeaderRow("데이터 경로");
+            SkillCreatorEditorUtil.HeaderRow("데이터 경로");
             _skillsPath = EditorGUILayout.TextField("Skills JSON", _skillsPath);
             _buffsPath = EditorGUILayout.TextField("Buffs JSON", _buffsPath);
 
-            SkillForgeEditorUtil.HeaderRow("시뮬레이션 입력");
+            SkillCreatorEditorUtil.HeaderRow("시뮬레이션 입력");
             _skillId = EditorGUILayout.TextField("Skill Id", _skillId);
             _casterAttack = EditorGUILayout.FloatField("Caster Attack", _casterAttack);
             _targetDefense = EditorGUILayout.FloatField("Target Defense", _targetDefense);
@@ -47,7 +47,7 @@ namespace SkillForge.EditorTools
             if (GUILayout.Button("Run Simulation", GUILayout.Height(28)))
                 RunSimulation();
 
-            SkillForgeEditorUtil.HeaderRow("결과 로그");
+            SkillCreatorEditorUtil.HeaderRow("결과 로그");
             _scroll = EditorGUILayout.BeginScrollView(_scroll);
             EditorGUILayout.TextArea(_log, GUILayout.ExpandHeight(true));
             EditorGUILayout.EndScrollView();

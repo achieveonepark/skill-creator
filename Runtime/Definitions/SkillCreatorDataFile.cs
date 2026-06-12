@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace SkillForge
+namespace SkillCreator
 {
     /// <summary>
     /// skills.json 의 루트 컨테이너. JsonUtility 는 최상위 배열을 직접 역직렬화하지 못하므로

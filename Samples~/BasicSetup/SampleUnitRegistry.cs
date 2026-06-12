@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace SkillForge.Samples
+namespace SkillCreator.Samples
 {
     /// <summary>
     /// 씬의 SampleBattleUnit 들을 모아 광역 타겟팅을 지원하는 IUnitRegistry 예제.
