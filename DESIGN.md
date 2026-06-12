@@ -293,7 +293,7 @@ public sealed class ReactionContext
 
 public sealed class ReactionEngine
 {
-    public void Fire(string trigger, EntityData data, ReactionContext ctx)
+    public void Run(string trigger, EntityData data, ReactionContext ctx)
     {
         foreach (var r in data.reactions)
         {
@@ -349,7 +349,7 @@ var monsters = new DataBase<MonsterData>();
 monsters.Load(new CsvDataLoader<MonsterData>(() => File.ReadAllText(path), new MonsterCsvMapper()));
 
 // 몬스터가 피격당했을 때
-engine.Fire("on_hit", monsters.Get("goblin_boss"), ctx);
+engine.Run("on_hit", monsters.Get("goblin_boss"), ctx);
 // → reactions의 on_hp_below 발동 → enrage effect 실행
 ```
 
@@ -434,7 +434,7 @@ Samples~/
 | `TargetResolver` (self/single/circle/cone) | `[Trigger]`/타겟팅 헬퍼로 재배치 |
 | `SkillDataLoader` + `SkillDataFile`/`BuffDataFile` | **삭제** (Newtonsoft + `DataBase<T>`가 대체) |
 | 기존 IMGUI 에디터 창(Skill/Buff/Preview) | UIToolkit `Type Designer` + `Data Editor`로 통합/대체 |
-| `SkillSystem.Use("fire_slash", caster)` | `engine.Fire("on_use", skill, ctx)` |
+| `SkillSystem.Use("fire_slash", caster)` | `engine.Run("on_use", skill, ctx)` |
 | `StatSheet`, `CooldownStore`, Buff(Instance/Container/Controller) | **유지**, `Entity/`로 이동 |
 | `IBattleUnit` / `IUnitRegistry` | `IEntity` / `IWorld`로 일반화 |
 | `DataValidator` | 스키마 + 레지스트리 기준으로 확장 |
