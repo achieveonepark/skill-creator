@@ -1,0 +1,30 @@
+# Unity 생성 폴더 (패키지 소비 프로젝트 기준)
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+
+# IDE
+.idea/
+.vs/
+.vscode/
+*.csproj
+*.sln
+*.user
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node (문서 사이트)
+node_modules/
+.next/
+out/
+.turbo/
+.contentlayer/
+.source/
+*.log
+.env*.local

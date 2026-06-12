@@ -1,0 +1,51 @@
+{
+  "skills": [
+    {
+      "id": "fire_slash",
+      "name": "화염 검기",
+      "cooldown": 5.0,
+      "castTime": 0.3,
+      "targeting": {
+        "type": "cone",
+        "range": 5.0,
+        "angle": 60,
+        "maxTargets": 5
+      },
+      "conditions": [
+        { "type": "alive" }
+      ],
+      "effects": [
+        { "type": "damage", "power": 1.8, "damageType": "physical" },
+        { "type": "add_buff", "buffId": "burn", "duration": 5.0 },
+        { "type": "play_vfx", "vfxId": "fire_slash_vfx" }
+      ]
+    },
+    {
+      "id": "heal_word",
+      "name": "치유의 말",
+      "cooldown": 8.0,
+      "castTime": 0.5,
+      "targeting": { "type": "self" },
+      "conditions": [
+        { "type": "hp_below", "value": 0.8 }
+      ],
+      "effects": [
+        { "type": "heal", "power": 2.0 },
+        { "type": "play_vfx", "vfxId": "heal_vfx" }
+      ]
+    },
+    {
+      "id": "power_strike",
+      "name": "강타",
+      "cooldown": 3.0,
+      "castTime": 0.0,
+      "targeting": { "type": "single_enemy" },
+      "conditions": [
+        { "type": "chance", "value": 1.0 }
+      ],
+      "effects": [
+        { "type": "damage", "power": 2.5, "damageType": "physical" }
+      ]
+    }
+  ]
+}

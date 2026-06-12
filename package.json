@@ -1,0 +1,25 @@
+{
+  "name": "com.skillforge.core",
+  "version": "0.1.0",
+  "displayName": "SkillForge",
+  "description": "Unity에서 스킬, 버프, 타겟팅, 조건, 효과를 데이터(JSON) 조합으로 제작하고 검증하는 콘텐츠 제작 도구. ScriptableObject 의존 없이 JSON / Spreadsheet / Remote Data 기반으로 운용할 수 있습니다.",
+  "unity": "2021.3",
+  "keywords": [
+    "skill",
+    "buff",
+    "combat",
+    "data-driven",
+    "json",
+    "rpg"
+  ],
+  "author": {
+    "name": "achieveone"
+  },
+  "samples": [
+    {
+      "displayName": "Basic Setup",
+      "description": "샘플 전투 유닛, 유닛 레지스트리, 예제 스킬/버프 JSON, 부트스트랩 예제를 포함합니다.",
+      "path": "Samples~/BasicSetup"
+    }
+  ]
+}

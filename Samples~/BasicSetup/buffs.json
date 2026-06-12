@@ -1,0 +1,32 @@
+{
+  "buffs": [
+    {
+      "id": "burn",
+      "name": "화상",
+      "duration": 5.0,
+      "maxStack": 3,
+      "stackPolicy": "stack",
+      "refreshPolicy": "refresh_duration",
+      "statModifiers": [],
+      "onApplyEffects": [],
+      "periodicEffects": [
+        { "type": "damage", "power": 0.3, "interval": 1.0, "damageType": "fire" }
+      ],
+      "onRemoveEffects": []
+    },
+    {
+      "id": "attack_up",
+      "name": "공격력 증가",
+      "duration": 10.0,
+      "maxStack": 1,
+      "stackPolicy": "replace",
+      "refreshPolicy": "refresh_duration",
+      "statModifiers": [
+        { "statKey": "attack", "modifierType": "percent_add", "value": 0.2 }
+      ],
+      "onApplyEffects": [],
+      "periodicEffects": [],
+      "onRemoveEffects": []
+    }
+  ]
+}
