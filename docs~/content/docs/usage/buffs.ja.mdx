@@ -1,0 +1,92 @@
+---
+title: バフシステム
+description: スタック・更新ポリシー、周期効果、スタット修正子のランタイム動作。
+---
+
+バフは `BuffController` が中央で管理します。適用・スタック・更新・周期効果・解除とスタット修正子の適用をすべて担当します。
+
+## 適用と解除
+
+```csharp
+// エフェクトを通じた適用 (スキル effect: add_buff)
+system.Buffs.AddBuff(target, "burn", source: caster, overrideDuration: 5f);
+
+// 直接除去
+system.Buffs.RemoveBuff(target, "burn");
+```
+
+適用時に `onApplyEffects`、解除時に `onRemoveEffects` が1回実行されます。解除時には適用したスタット修正子が正確に元に戻されます。
+
+## スタックポリシー (stackPolicy)
+
+すでに同じバフが存在するときの動作です。
+
+| ポリシー | 動作 |
+| --- | --- |
+| `stack` | `maxStack` までスタックを増加。スタット修正子もスタック倍率で再適用 |
+| `ignore` | 新しい適用を無視（更新ポリシーのみ反映） |
+| `replace` | 既存を置き換え、スタック1を維持 |
+
+## 更新ポリシー (refreshPolicy)
+
+再適用時の残り持続時間の処理です。
+
+| ポリシー | 動作 |
+| --- | --- |
+| `refresh_duration` | 持続時間をリセット |
+| `keep` | 残り持続時間を維持 |
+
+## 周期効果 (periodicEffects)
+
+`interval` ごとに効果が繰り返し実行されます。燃焼のようなDoTダメージに使用します。
+
+```json
+"periodicEffects": [
+  { "type": "damage", "power": 0.3, "interval": 1.0, "damageType": "fire" }
+]
+```
+
+タイマーは累積方式なので、フレームドロップがあっても `interval` 基準の発動回数が保たれます。進行は `system.Tick(deltaTime)` が担当するため、毎フレーム呼び出す必要があります。
+
+## スタット修正子 (statModifiers)
+
+バフが有効な間、ユニットのスタットを変更します。
+
+```json
+"statModifiers": [
+  { "statKey": "attack", "modifierType": "percent_add", "value": 0.2 }
+]
+```
+
+`stack` ポリシーのバフはスタック数だけ修正子が倍率適用されます。例えば、攻撃力+20%のバフが3スタックなら `percent_add` の合計が0.6になります。
+
+```text
+最終 attack = (base + flat合計) × (1 + percent_add合計) × Π(1 + percent_mul)
+```
+
+各バフインスタンスが自身をソーストークンとして登録するため、解除時にそのバフが設定した修正子のみが正確に除去されます。
+
+## 燃焼バフの完全な例
+
+```json
+{
+  "id": "burn",
+  "name": "火傷",
+  "duration": 5.0,
+  "maxStack": 3,
+  "stackPolicy": "stack",
+  "refreshPolicy": "refresh_duration",
+  "statModifiers": [],
+  "periodicEffects": [
+    { "type": "damage", "power": 0.3, "interval": 1.0, "damageType": "fire" }
+  ]
+}
+```
+
+- 5秒間持続、最大3スタック
+- 1秒ごとに `攻撃力 × 0.3` の炎ダメージ
+- 再適用するとスタックが積まれ、持続時間がリセット
+
+## 死亡ユニットのクリーンアップ
+
+`Tick` 中に所有ユニットが死亡した場合、そのユニットのバフインスタンスは自動的にクリーンアップされ、アクティブリストから除去されます。

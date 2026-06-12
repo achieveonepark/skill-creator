@@ -1,0 +1,88 @@
+---
+title: エディターツール
+description: Skill / Buff Editor、Preview Simulator、データ検証。
+---
+
+`Tools/Skill Creator` メニューから3つのエディターウィンドウを使用できます。すべて JSON ファイルを直接読み書きします。
+
+## Skill Editor
+
+`Tools/Skill Creator/Skill Editor`
+
+- スキルリストの表示 / 追加 / 削除 / 複製
+- id、名前、クールダウン、詠唱時間の編集
+- ターゲティングタイプの選択とパラメーター入力
+- 条件の追加 / 削除
+- エフェクトの追加 / 削除（タイプ別フィールドを自動表示）
+- **Save** — JSON保存
+- **Validate** — データ検証
+
+ターゲティング・条件・エフェクトのタイプはドロップダウンで選択するため、タイプミスが発生しません。非対応の値が入力されても、リストに "(非対応)" として表示して保持します。
+
+## Buff Editor
+
+`Tools/Skill Creator/Buff Editor`
+
+- バフリスト / 追加 / 削除 / 複製
+- 持続時間、最大スタック、スタック・更新ポリシーの編集
+- スタット修正子の追加
+- 周期 / 適用 / 解除エフェクトの編集
+- Save / Validate
+
+## Preview Simulator
+
+`Tools/Skill Creator/Preview Simulator`
+
+実際の戦闘なしにスキルをシミュレートしてバランスを検証します。
+
+入力:
+
+- 詠唱者の攻撃力
+- 対象の防御力
+- 対象の数
+- 対象のHPレシオ
+- シミュレーション時間（バフ周期効果の進行用）
+
+ダミーの詠唱者/ターゲットを作成し、実際の `SkillSystem` を動かして、実行ログと適用結果を表示します。
+
+```text
+fire_slash used by Caster
+Target resolved: Target_1, Target_2
+Damage: Target_1 - 180 (physical)
+Damage: Target_2 - 180 (physical)
+Buff Applied: burn to Target_1
+Result: Success, Targets: 2
+```
+
+## データ検証
+
+検証は単純な入力ツール以上の価値があります。**不正なデータをランタイム前に検出します。**
+
+`DataValidator` はエディター・ランタイムのどちらからでも呼び出せます。
+
+```csharp
+ValidationReport report = DataValidator.Validate(skills, buffs);
+if (report.HasErrors)
+    Debug.LogError(report); // エラー/警告リストを出力
+```
+
+### スキル検証項目
+
+- id が空 / 重複
+- cooldown・castTime が負数
+- targeting.type が非対応
+- effects が最低1個
+- effect.type が非対応
+- `add_buff` の buffId の存在確認
+- `play_vfx` の vfxId（known セット指定時に警告）
+
+### バフ検証項目
+
+- id が空 / 重複
+- duration ≤ 0
+- maxStack < 1
+- stackPolicy・refreshPolicy が非対応
+- periodicEffect.interval ≤ 0
+- statModifier.statKey / modifierType
+
+`ValidationReport.ToString()` は人間が読みやすいエラー・警告の要約を返します。

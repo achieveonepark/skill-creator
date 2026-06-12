@@ -1,0 +1,92 @@
+---
+title: 增益系统
+description: 叠加与刷新策略、周期效果、属性修正的运行时行为。
+---
+
+增益由 `BuffController` 集中管理，负责施加、叠加、刷新、周期效果、移除以及属性修正的应用。
+
+## 施加与移除
+
+```csharp
+// 通过效果施加 (技能 effect: add_buff)
+system.Buffs.AddBuff(target, "burn", source: caster, overrideDuration: 5f);
+
+// 直接移除
+system.Buffs.RemoveBuff(target, "burn");
+```
+
+施加时执行一次 `onApplyEffects`，移除时执行一次 `onRemoveEffects`。移除时，该增益施加的属性修正会被精确还原。
+
+## 叠加策略 (stackPolicy)
+
+当相同增益已存在时的行为。
+
+| 策略 | 行为 |
+| --- | --- |
+| `stack` | 增加层数至 `maxStack`，属性修正按层数倍率重新应用 |
+| `ignore` | 忽略新的施加（仅反映刷新策略） |
+| `replace` | 替换现有增益，层数保持为1 |
+
+## 刷新策略 (refreshPolicy)
+
+再次施加时剩余持续时间的处理。
+
+| 策略 | 行为 |
+| --- | --- |
+| `refresh_duration` | 重置持续时间 |
+| `keep` | 保持剩余持续时间 |
+
+## 周期效果 (periodicEffects)
+
+每隔 `interval` 重复执行效果，用于燃烧等持续伤害效果。
+
+```json
+"periodicEffects": [
+  { "type": "damage", "power": 0.3, "interval": 1.0, "damageType": "fire" }
+]
+```
+
+计时器采用累积方式，即使发生帧率下降，基于 `interval` 的触发次数也能被保留。进行由 `system.Tick(deltaTime)` 负责，必须每帧调用。
+
+## 属性修正 (statModifiers)
+
+增益存活期间改变单位属性。
+
+```json
+"statModifiers": [
+  { "statKey": "attack", "modifierType": "percent_add", "value": 0.2 }
+]
+```
+
+`stack` 策略的增益按层数倍率应用修正。例如，攻击力+20% 的增益叠加3层时，`percent_add` 之和为0.6。
+
+```text
+最终 attack = (base + flat之和) × (1 + percent_add之和) × Π(1 + percent_mul)
+```
+
+每个增益实例以自身作为 source 令牌注册，因此移除时只精确移除该增益设置的修正。
+
+## 燃烧增益完整示例
+
+```json
+{
+  "id": "burn",
+  "name": "燃烧",
+  "duration": 5.0,
+  "maxStack": 3,
+  "stackPolicy": "stack",
+  "refreshPolicy": "refresh_duration",
+  "statModifiers": [],
+  "periodicEffects": [
+    { "type": "damage", "power": 0.3, "interval": 1.0, "damageType": "fire" }
+  ]
+}
+```
+
+- 持续5秒，最多3层
+- 每1秒造成 `攻击力 × 0.3` 的火焰伤害
+- 再次施加时叠加层数并重置持续时间
+
+## 死亡单位清理
+
+`Tick` 过程中若所属单位死亡，该单位的增益实例会自动清理并从活跃列表中移除。

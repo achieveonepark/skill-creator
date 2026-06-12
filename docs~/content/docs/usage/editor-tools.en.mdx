@@ -1,0 +1,88 @@
+---
+title: Editor Tools
+description: Skill / Buff Editor, Preview Simulator, and data validation.
+---
+
+Three editor windows are available from the `Tools/Skill Creator` menu. All of them read and write JSON files directly.
+
+## Skill Editor
+
+`Tools/Skill Creator/Skill Editor`
+
+- View / add / delete / duplicate skill list
+- Edit id, name, cooldown, and cast time
+- Select targeting type and enter parameters
+- Add / delete conditions
+- Add / delete effects (fields auto-displayed per type)
+- **Save** — Save to JSON
+- **Validate** — Validate data
+
+Targeting, condition, and effect types are selected from dropdowns so typos cannot occur. Unsupported values that come in are displayed as "(unsupported)" in the list and preserved.
+
+## Buff Editor
+
+`Tools/Skill Creator/Buff Editor`
+
+- Buff list / add / delete / duplicate
+- Edit duration, max stack, stack and refresh policies
+- Add stat modifiers
+- Edit periodic / apply / remove effects
+- Save / Validate
+
+## Preview Simulator
+
+`Tools/Skill Creator/Preview Simulator`
+
+Simulates skills without an actual battle to validate balance.
+
+Inputs:
+
+- Caster attack power
+- Target defense
+- Number of targets
+- Target HP ratio
+- Simulation time (for advancing buff periodic effects)
+
+Creates dummy caster/targets, runs the actual `SkillSystem`, and displays execution logs and applied results.
+
+```text
+fire_slash used by Caster
+Target resolved: Target_1, Target_2
+Damage: Target_1 - 180 (physical)
+Damage: Target_2 - 180 (physical)
+Buff Applied: burn to Target_1
+Result: Success, Targets: 2
+```
+
+## Data validation
+
+Validation is more valuable than a simple input tool. **It catches invalid data before runtime.**
+
+`DataValidator` can be called from both editor and runtime.
+
+```csharp
+ValidationReport report = DataValidator.Validate(skills, buffs);
+if (report.HasErrors)
+    Debug.LogError(report); // Outputs list of errors/warnings
+```
+
+### Skill validation items
+
+- id empty / duplicate
+- cooldown / castTime negative
+- targeting.type unsupported
+- effects minimum of 1
+- effect.type unsupported
+- buffId existence for `add_buff`
+- vfxId for `play_vfx` (warning if known set provided)
+
+### Buff validation items
+
+- id empty / duplicate
+- duration ≤ 0
+- maxStack < 1
+- stackPolicy / refreshPolicy unsupported
+- periodicEffect.interval ≤ 0
+- statModifier.statKey / modifierType
+
+`ValidationReport.ToString()` returns a human-readable summary of errors and warnings.

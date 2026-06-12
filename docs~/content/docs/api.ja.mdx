@@ -1,0 +1,141 @@
+---
+title: API リファレンス
+description: 主要クラスとシグネチャ。
+---
+
+名前空間はすべて `Skill Creator` です。
+
+## SkillSystem
+
+全コンポーネントを配線するファサード。
+
+```csharp
+public sealed class SkillSystem
+{
+    public SkillDatabase Database { get; }
+    public SkillRunner Runner { get; }
+    public BuffController Buffs { get; }
+    public TargetResolver Targeting { get; }
+    public ConditionEvaluator Conditions { get; }
+    public EffectExecutor Effects { get; }
+
+    public SkillSystem(IUnitRegistry registry, IVfxPlayer vfxPlayer = null,
+                       ISfxPlayer sfxPlayer = null, ICombatLogger logger = null);
+
+    public void LoadFromJson(string skillsJson, string buffsJson);
+    public void LoadSkills(IEnumerable<SkillDefinition> skills);
+    public void LoadBuffs(IEnumerable<BuffDefinition> buffs);
+
+    public SkillUseResult Use(string skillId, IBattleUnit caster, IBattleUnit inputTarget = null);
+    public void Tick(float deltaTime);
+}
+```
+
+## SkillRunner
+
+```csharp
+public SkillUseResult Use(string skillId, IBattleUnit caster, IBattleUnit inputTarget = null);
+
+public IEnumerator UseRoutine(string skillId, IBattleUnit caster,
+    IBattleUnit inputTarget = null, Action<SkillUseResult> onComplete = null);
+```
+
+```csharp
+public enum SkillUseStatus { Success, SkillNotFound, OnCooldown, NoTargets, ConditionFailed }
+
+public readonly struct SkillUseResult
+{
+    public readonly SkillUseStatus Status;
+    public readonly List<IBattleUnit> Targets;
+    public bool Success { get; }
+}
+```
+
+## SkillDatabase
+
+```csharp
+public SkillDefinition GetSkill(string id);
+public BuffDefinition GetBuff(string id);
+public bool HasSkill(string id);
+public bool HasBuff(string id);
+
+public void LoadSkills(IEnumerable<SkillDefinition> skills);  // 全体置き換え
+public void AddSkills(IEnumerable<SkillDefinition> skills);   // マージ
+public void LoadBuffs(IEnumerable<BuffDefinition> buffs);
+public void AddBuffs(IEnumerable<BuffDefinition> buffs);
+```
+
+## SkillDataLoader
+
+```csharp
+public static List<SkillDefinition> LoadSkillsFromJson(string json);
+public static List<BuffDefinition> LoadBuffsFromJson(string json);
+public static string SkillsToJson(IEnumerable<SkillDefinition> skills, bool pretty = true);
+public static string BuffsToJson(IEnumerable<BuffDefinition> buffs, bool pretty = true);
+```
+
+## BuffController
+
+```csharp
+public void AddBuff(IBattleUnit target, string buffId, IBattleUnit source, float overrideDuration = 0f);
+public void RemoveBuff(IBattleUnit target, string buffId);
+public void Tick(float deltaTime);
+public IReadOnlyList<BuffInstance> ActiveBuffs { get; }
+```
+
+## StatSheet
+
+```csharp
+public void SetBase(string statKey, float value);
+public float GetBase(string statKey);
+public float Get(string statKey);  // 修正子適用後の最終値
+
+public void AddModifier(string statKey, string modifierType, float value, object source);
+public void AddModifiers(IEnumerable<StatModifierDefinition> mods, object source, float scale = 1f);
+public void RemoveSource(object source);
+```
+
+## CooldownStore
+
+```csharp
+public CooldownStore(Func<float> timeProvider = null);
+public bool IsReady(string skillId);
+public void Start(string skillId, float cooldown);
+public float Remaining(string skillId);
+```
+
+## BuffContainer
+
+```csharp
+public bool Has(string buffId);
+public BuffInstance Get(string buffId);
+public int StackCount(string buffId);
+public IReadOnlyList<BuffInstance> Instances { get; }
+```
+
+## DataValidator
+
+```csharp
+public static ValidationReport Validate(
+    IList<SkillDefinition> skills,
+    IList<BuffDefinition> buffs,
+    ISet<string> knownVfxIds = null);
+```
+
+## 統合インターフェース
+
+```csharp
+public interface IBattleUnit { /* はじめに を参照 */ }
+
+public interface IUnitRegistry
+{
+    IReadOnlyList<IBattleUnit> AllUnits { get; }
+    void Collect(Vector3 center, float radius, List<IBattleUnit> buffer);
+}
+
+public interface IVfxPlayer { void Play(string vfxId, Vector3 position); }
+public interface ISfxPlayer { void Play(string sfxId, Vector3 position); }
+public interface ICombatLogger { void Log(string message); }
+```
+
+デフォルト実装として `UnityCombatLogger`、`NullCombatLogger`、`NullPresentation` を提供します。

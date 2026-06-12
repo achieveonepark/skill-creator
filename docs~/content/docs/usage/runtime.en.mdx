@@ -1,0 +1,127 @@
+---
+title: Runtime
+description: The SkillSystem facade and combat system integration.
+---
+
+## SkillSystem facade
+
+`SkillSystem` is the entry point that wires together the database, runner, target resolver, condition evaluator, effect executor, and buff controller all at once.
+
+```csharp
+var system = new SkillSystem(registry, vfxPlayer, sfxPlayer, logger);
+system.LoadFromJson(skillsJson, buffsJson);
+
+void Update() => system.Tick(Time.deltaTime);
+
+system.Use("fire_slash", caster, target);
+```
+
+Internal components are accessible directly as properties.
+
+| Property | Type |
+| --- | --- |
+| `Database` | `SkillDatabase` |
+| `Runner` | `SkillRunner` |
+| `Buffs` | `BuffController` |
+| `Targeting` | `TargetResolver` |
+| `Conditions` | `ConditionEvaluator` |
+| `Effects` | `EffectExecutor` |
+
+## Skill execution
+
+### Immediate execution
+
+```csharp
+SkillUseResult result = system.Use("fire_slash", caster, target);
+```
+
+Use `SkillUseResult.Status` to find the failure reason.
+
+| Status | Meaning |
+| --- | --- |
+| `Success` | Executed normally |
+| `SkillNotFound` | No definition found |
+| `OnCooldown` | Still on cooldown |
+| `NoTargets` | No targets found |
+| `ConditionFailed` | Condition check failed |
+
+### Cast time handling
+
+`Use` ignores cast time. To wait for casting, use the coroutine `UseRoutine`.
+
+```csharp
+StartCoroutine(system.Runner.UseRoutine("fire_slash", caster, target,
+    onComplete: r => Debug.Log(r.Status)));
+```
+
+It is provided as a standard `IEnumerator` coroutine to avoid depending on external async libraries like UniTask.
+
+## IBattleUnit integration
+
+Combat units implement `IBattleUnit`. `Stats` / `Cooldowns` / `Buffs` use the implementations provided by Skill Creator directly.
+
+```csharp
+public interface IBattleUnit
+{
+    string Id { get; }
+    bool IsAlive { get; }
+    float HpRatio { get; }
+    Vector3 Position { get; }
+    Vector3 Forward { get; }
+
+    StatSheet Stats { get; }
+    CooldownStore Cooldowns { get; }
+    BuffContainer Buffs { get; }
+
+    bool IsEnemyOf(IBattleUnit other);
+    void TakeDamage(float amount, string damageType);
+    void Heal(float amount);
+}
+```
+
+Apply project-specific damage reduction logic (defense, resistance, etc.) inside `TakeDamage`. Skill Creator only computes `value + attack × power` and delegates the final application to the unit.
+
+## IUnitRegistry integration
+
+`circle` / `cone` targeting requires querying nearby units. Implement `IUnitRegistry` to connect.
+
+```csharp
+public sealed class MyRegistry : IUnitRegistry
+{
+    private readonly List<IBattleUnit> _units = new();
+    public IReadOnlyList<IBattleUnit> AllUnits => _units;
+
+    public void Collect(Vector3 center, float radius, List<IBattleUnit> buffer)
+    {
+        float sqr = radius * radius;
+        foreach (var u in _units)
+            if ((u.Position - center).sqrMagnitude <= sqr)
+                buffer.Add(u);
+    }
+}
+```
+
+You can also implement it with `Physics.OverlapSphere` or by iterating your own unit list. Skill Creator filters to **alive enemies** from the candidates returned and uses up to `maxTargets`.
+
+## Cooldowns
+
+`CooldownStore` is absolute-time based and requires no per-frame updates. The default time provider is `Time.time`, but you can inject a custom provider for testing or pausing.
+
+```csharp
+var cooldowns = new CooldownStore(() => myGameClock.Now);
+```
+
+## Data loading / patching
+
+```csharp
+// Load from JSON string
+system.LoadFromJson(skillsJson, buffsJson);
+
+// Load directly from code
+system.Database.LoadSkills(listOfSkillDefinitions);
+
+// Merge a subset (runtime patch)
+system.Database.AddSkills(patchedSkills);
+```
+
+`LoadSkills` fully replaces; `AddSkills` merges by overwriting entries with the same id. This is suitable for hot-patching by receiving remote JSON and calling `AddSkills`.

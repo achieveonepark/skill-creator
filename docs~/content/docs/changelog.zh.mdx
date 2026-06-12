@@ -1,0 +1,29 @@
+---
+title: 更新日志
+description: Skill Creator 发布说明。
+---
+
+## 0.1.0 — 2026-06-12
+
+首次发布。数据驱动技能/增益系统的 MVP。
+
+### 新增
+
+- **数据定义** — `SkillDefinition`、`BuffDefinition`、`TargetingDefinition`、`ConditionDefinition`、`EffectDefinition`、`StatModifierDefinition`（支持 JSON 序列化）
+- **运行时** — `SkillSystem` 门面、`SkillRunner`、`TargetResolver`、`ConditionEvaluator`、`EffectExecutor`、`BuffController`、`SkillDatabase`、`SkillDataLoader`
+- **集成边界** — `IBattleUnit`、`IUnitRegistry`、`IVfxPlayer`、`ISfxPlayer`、`ICombatLogger`
+- **支持实现** — `StatSheet`、`CooldownStore`、`BuffContainer`、`BuffInstance`
+- **验证** — `DataValidator`、`ValidationReport`
+- **编辑器工具** — Skill Editor、Buff Editor、Preview Simulator、JSON Exporter
+- **示例** — Basic Setup（示例单位/注册表/启动引导、skills.json、buffs.json）
+
+### 支持类型
+
+| 分类 | 值 |
+| --- | --- |
+| Targeting | `self`, `single_enemy`, `circle`, `cone` |
+| Condition | `always`, `alive`, `chance`, `hp_below`, `hp_above`, `has_buff`, `not_has_buff`, `target_count_above`, `target_count_below` |
+| Effect | `damage`, `heal`, `add_buff`, `remove_buff`, `play_vfx`, `play_sfx` |
+| StackPolicy | `stack`, `ignore`, `replace` |
+| RefreshPolicy | `refresh_duration`, `keep` |
+| StatModifier | `flat`, `percent_add`, `percent_mul` |

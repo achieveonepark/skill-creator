@@ -1,0 +1,29 @@
+---
+title: 変更履歴
+description: Skill Creator リリースノート。
+---
+
+## 0.1.0 — 2026-06-12
+
+初回リリース。データ駆動スキル/バフシステムのMVP。
+
+### 追加
+
+- **データ定義** — `SkillDefinition`、`BuffDefinition`、`TargetingDefinition`、`ConditionDefinition`、`EffectDefinition`、`StatModifierDefinition`（JSONシリアライズ対応）
+- **ランタイム** — `SkillSystem` ファサード、`SkillRunner`、`TargetResolver`、`ConditionEvaluator`、`EffectExecutor`、`BuffController`、`SkillDatabase`、`SkillDataLoader`
+- **統合境界** — `IBattleUnit`、`IUnitRegistry`、`IVfxPlayer`、`ISfxPlayer`、`ICombatLogger`
+- **サポート実装** — `StatSheet`、`CooldownStore`、`BuffContainer`、`BuffInstance`
+- **検証** — `DataValidator`、`ValidationReport`
+- **エディターツール** — Skill Editor、Buff Editor、Preview Simulator、JSON Exporter
+- **サンプル** — Basic Setup（サンプルユニット/レジストリ/ブートストラップ、skills.json、buffs.json）
+
+### 対応タイプ
+
+| 分類 | 値 |
+| --- | --- |
+| Targeting | `self`, `single_enemy`, `circle`, `cone` |
+| Condition | `always`, `alive`, `chance`, `hp_below`, `hp_above`, `has_buff`, `not_has_buff`, `target_count_above`, `target_count_below` |
+| Effect | `damage`, `heal`, `add_buff`, `remove_buff`, `play_vfx`, `play_sfx` |
+| StackPolicy | `stack`, `ignore`, `replace` |
+| RefreshPolicy | `refresh_duration`, `keep` |
+| StatModifier | `flat`, `percent_add`, `percent_mul` |

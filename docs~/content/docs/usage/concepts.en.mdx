@@ -1,0 +1,81 @@
+---
+title: Core Concepts
+description: Execution flow and design philosophy — why data-driven.
+---
+
+## Execution flow
+
+Every skill follows the same pipeline.
+
+```text
+Trigger → Targeting → Condition → Effect → Result
+```
+
+| Step | Responsible | Description |
+| --- | --- | --- |
+| Trigger | `SkillRunner` | Skill use request. Checks cooldown. |
+| Targeting | `TargetResolver` | Computes the actual target list from the targeting definition. |
+| Condition | `ConditionEvaluator` | Evaluates conditions with AND logic before executing effects. |
+| Effect | `EffectExecutor` | Executes the effect list sequentially. |
+| Result | — | Applies damage/heal/buffs, starts cooldown, records log. |
+
+The actual order inside `SkillRunner.Use` is:
+
+```text
+1. Look up SkillDefinition
+2. Check cooldown
+3. Compute target list
+4. Evaluate conditions
+5. (Wait for cast time — UseRoutine only)
+6. Execute effects sequentially
+7. Apply cooldown
+8. Record execution log
+```
+
+## Composition of small pieces
+
+A skill is not a monolithic class but a composition of data pieces.
+
+```text
+Skill
+ ├─ Targeting   (what to hit)
+ ├─ Condition[] (whether to execute)
+ └─ Effect[]    (what to do)
+```
+
+New skills are created with **data, not code**. Combining the same `damage` / `add_buff` / `play_vfx` pieces differently produces entirely different skills.
+
+## Why minimize ScriptableObject
+
+`ScriptableObject` is convenient inside the Unity Editor, but has limitations as a content production tool.
+
+- Awkward to integrate with external tools (Spreadsheet/server)
+- Runtime patching is cumbersome
+- Diffing large amounts of data is inconvenient
+- Designers must open the Unity Editor
+- Applying balance changes during live operations is heavy
+
+Therefore Skill Creator uses **JSON as the primary storage format** and prioritizes the following operation flow.
+
+```text
+JSON → CSV → Google Spreadsheet Export → Remote Config → CDN → Addressables TextAsset
+```
+
+## Integration boundary
+
+Skill Creator does not impose a specific combat system. The following interfaces form the boundary.
+
+| Interface | Role | Required |
+| --- | --- | --- |
+| `IBattleUnit` | Combat unit abstraction | ✅ |
+| `IUnitRegistry` | Unit lookup for area targeting | When using circle/cone |
+| `IVfxPlayer` / `ISfxPlayer` | Presentation playback | Optional |
+| `ICombatLogger` | Execution logging | Optional |
+
+`StatSheet`, `CooldownStore`, and `BuffContainer` held by units are provided by Skill Creator, so you do not need to implement them yourself.
+
+## MVP scope
+
+There is no node graph or full expression parser from the start. The MVP covers **creating, validating, and executing data at runtime**.
+
+See the [Data Format](/data-format) documentation for supported types.

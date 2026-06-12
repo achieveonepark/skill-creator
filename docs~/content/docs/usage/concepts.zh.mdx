@@ -1,0 +1,81 @@
+---
+title: 核心概念
+description: 执行流程与设计哲学 — 为何选择数据驱动。
+---
+
+## 执行流程
+
+每个技能都遵循相同的流水线。
+
+```text
+Trigger → Targeting → Condition → Effect → Result
+```
+
+| 阶段 | 负责方 | 说明 |
+| --- | --- | --- |
+| Trigger | `SkillRunner` | 技能使用请求，检查冷却时间。 |
+| Targeting | `TargetResolver` | 根据目标定义计算实际目标列表。 |
+| Condition | `ConditionEvaluator` | 执行效果前以 AND 逻辑检查条件。 |
+| Effect | `EffectExecutor` | 按顺序执行效果列表。 |
+| Result | — | 应用伤害/治疗/增益，启动冷却，记录日志。 |
+
+`SkillRunner.Use` 的实际顺序如下。
+
+```text
+1. 查找 SkillDefinition
+2. 检查冷却时间
+3. 计算目标列表
+4. 检查条件
+5. (等待施法时间 — 仅 UseRoutine)
+6. 顺序执行效果列表
+7. 应用冷却时间
+8. 记录执行日志
+```
+
+## 小模块的组合
+
+技能不是庞大的类，而是数据模块的组合。
+
+```text
+Skill
+ ├─ Targeting   (打击什么)
+ ├─ Condition[] (是否可以执行)
+ └─ Effect[]    (做什么)
+```
+
+新技能通过**数据而非代码**创建。将相同的 `damage` / `add_buff` / `play_vfx` 模块以不同方式组合，即可产生完全不同的技能。
+
+## 为何最小化 ScriptableObject
+
+`ScriptableObject` 在 Unity Editor 中很方便，但作为内容量产工具有其局限性。
+
+- 与外部工具（Spreadsheet/服务器）集成不便
+- 运行时热更新繁琐
+- 大量数据的差异比对不便
+- 策划人员必须打开 Unity Editor
+- 运营期间反映数值调整的流程繁重
+
+因此 Skill Creator 以 **JSON 作为首要存储格式**，并优先支持以下运营流程。
+
+```text
+JSON → CSV → Google Spreadsheet Export → Remote Config → CDN → Addressables TextAsset
+```
+
+## 集成边界
+
+Skill Creator 不强制使用特定的战斗系统。以下接口构成边界。
+
+| 接口 | 角色 | 必须 |
+| --- | --- | --- |
+| `IBattleUnit` | 战斗单位抽象 | ✅ |
+| `IUnitRegistry` | 范围目标的单位查询 | 使用 circle/cone 时 |
+| `IVfxPlayer` / `ISfxPlayer` | 演出播放 | 可选 |
+| `ICombatLogger` | 执行日志 | 可选 |
+
+单位持有的 `StatSheet`、`CooldownStore`、`BuffContainer` 由 Skill Creator 提供，无需自行实现。
+
+## MVP 范围
+
+从一开始不构建节点图或完整的表达式解析器。MVP 覆盖**创建数据、验证数据、在运行时执行数据**。
+
+支持的类型请参阅 [数据格式](/data-format) 文档。

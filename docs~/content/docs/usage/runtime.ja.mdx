@@ -1,0 +1,127 @@
+---
+title: ランタイム
+description: SkillSystem ファサードと戦闘システムの統合。
+---
+
+## SkillSystem ファサード
+
+`SkillSystem` は、データベース・ランナー・ターゲットリゾルバー・条件評価器・エフェクト実行器・バフコントローラーを一括で配線するエントリーポイントです。
+
+```csharp
+var system = new SkillSystem(registry, vfxPlayer, sfxPlayer, logger);
+system.LoadFromJson(skillsJson, buffsJson);
+
+void Update() => system.Tick(Time.deltaTime);
+
+system.Use("fire_slash", caster, target);
+```
+
+内部コンポーネントはプロパティで直接アクセスできます。
+
+| プロパティ | 型 |
+| --- | --- |
+| `Database` | `SkillDatabase` |
+| `Runner` | `SkillRunner` |
+| `Buffs` | `BuffController` |
+| `Targeting` | `TargetResolver` |
+| `Conditions` | `ConditionEvaluator` |
+| `Effects` | `EffectExecutor` |
+
+## スキル実行
+
+### 即時実行
+
+```csharp
+SkillUseResult result = system.Use("fire_slash", caster, target);
+```
+
+`SkillUseResult.Status` で失敗原因を確認できます。
+
+| Status | 意味 |
+| --- | --- |
+| `Success` | 正常実行 |
+| `SkillNotFound` | 定義なし |
+| `OnCooldown` | クールダウン中 |
+| `NoTargets` | ターゲットなし |
+| `ConditionFailed` | 条件失敗 |
+
+### 詠唱時間処理
+
+`Use` は詠唱時間を無視します。詠唱を待つにはコルーチン `UseRoutine` を使用します。
+
+```csharp
+StartCoroutine(system.Runner.UseRoutine("fire_slash", caster, target,
+    onComplete: r => Debug.Log(r.Status)));
+```
+
+UniTask などの外部非同期ライブラリに依存しないよう、標準の `IEnumerator` コルーチンで提供しています。
+
+## IBattleUnit 統合
+
+戦闘ユニットは `IBattleUnit` を実装します。`Stats` / `Cooldowns` / `Buffs` は Skill Creator が提供する実装体をそのまま使用します。
+
+```csharp
+public interface IBattleUnit
+{
+    string Id { get; }
+    bool IsAlive { get; }
+    float HpRatio { get; }
+    Vector3 Position { get; }
+    Vector3 Forward { get; }
+
+    StatSheet Stats { get; }
+    CooldownStore Cooldowns { get; }
+    BuffContainer Buffs { get; }
+
+    bool IsEnemyOf(IBattleUnit other);
+    void TakeDamage(float amount, string damageType);
+    void Heal(float amount);
+}
+```
+
+`TakeDamage` 内でプロジェクト固有のダメージ減算ロジック（防御力・耐性など）を適用します。Skill Creator は `value + 攻撃力 × power` まで計算し、最終適用はユニットに委譲します。
+
+## IUnitRegistry 統合
+
+`circle` / `cone` ターゲティングは周辺ユニットの検索が必要です。`IUnitRegistry` を実装して接続します。
+
+```csharp
+public sealed class MyRegistry : IUnitRegistry
+{
+    private readonly List<IBattleUnit> _units = new();
+    public IReadOnlyList<IBattleUnit> AllUnits => _units;
+
+    public void Collect(Vector3 center, float radius, List<IBattleUnit> buffer)
+    {
+        float sqr = radius * radius;
+        foreach (var u in _units)
+            if ((u.Position - center).sqrMagnitude <= sqr)
+                buffer.Add(u);
+    }
+}
+```
+
+`Physics.OverlapSphere` で実装しても、自前のユニットリストを反復しても構いません。Skill Creator は返された候補から**生存している敵**のみを抽出し、`maxTargets` まで使用します。
+
+## クールダウン
+
+`CooldownStore` は絶対時間基準のため、毎フレームの更新は不要です。デフォルトのタイムプロバイダーは `Time.time` ですが、テストや一時停止のためにカスタムプロバイダーを注入できます。
+
+```csharp
+var cooldowns = new CooldownStore(() => myGameClock.Now);
+```
+
+## データ読み込み / パッチ
+
+```csharp
+// JSON 文字列から読み込み
+system.LoadFromJson(skillsJson, buffsJson);
+
+// コードから直接読み込み
+system.Database.LoadSkills(listOfSkillDefinitions);
+
+// 一部のみマージ（ランタイムパッチ）
+system.Database.AddSkills(patchedSkills);
+```
+
+`LoadSkills` は全体置き換え、`AddSkills` は同じ id の上書きマージです。リモート JSON を受け取って `AddSkills` でホットパッチするフローに適しています。

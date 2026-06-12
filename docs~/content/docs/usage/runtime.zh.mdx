@@ -1,0 +1,127 @@
+---
+title: 运行时
+description: SkillSystem 门面与战斗系统集成。
+---
+
+## SkillSystem 门面
+
+`SkillSystem` 是将数据库、运行器、目标解析器、条件评估器、效果执行器和增益控制器一次性连接的入口点。
+
+```csharp
+var system = new SkillSystem(registry, vfxPlayer, sfxPlayer, logger);
+system.LoadFromJson(skillsJson, buffsJson);
+
+void Update() => system.Tick(Time.deltaTime);
+
+system.Use("fire_slash", caster, target);
+```
+
+内部组件可通过属性直接访问。
+
+| 属性 | 类型 |
+| --- | --- |
+| `Database` | `SkillDatabase` |
+| `Runner` | `SkillRunner` |
+| `Buffs` | `BuffController` |
+| `Targeting` | `TargetResolver` |
+| `Conditions` | `ConditionEvaluator` |
+| `Effects` | `EffectExecutor` |
+
+## 技能执行
+
+### 立即执行
+
+```csharp
+SkillUseResult result = system.Use("fire_slash", caster, target);
+```
+
+通过 `SkillUseResult.Status` 可以查看失败原因。
+
+| Status | 含义 |
+| --- | --- |
+| `Success` | 正常执行 |
+| `SkillNotFound` | 未找到定义 |
+| `OnCooldown` | 冷却中 |
+| `NoTargets` | 没有目标 |
+| `ConditionFailed` | 条件检查失败 |
+
+### 施法时间处理
+
+`Use` 忽略施法时间。若要等待施法，请使用协程 `UseRoutine`。
+
+```csharp
+StartCoroutine(system.Runner.UseRoutine("fire_slash", caster, target,
+    onComplete: r => Debug.Log(r.Status)));
+```
+
+为避免依赖 UniTask 等外部异步库，使用标准 `IEnumerator` 协程提供。
+
+## IBattleUnit 集成
+
+战斗单位实现 `IBattleUnit`。`Stats` / `Cooldowns` / `Buffs` 直接使用 Skill Creator 提供的实现。
+
+```csharp
+public interface IBattleUnit
+{
+    string Id { get; }
+    bool IsAlive { get; }
+    float HpRatio { get; }
+    Vector3 Position { get; }
+    Vector3 Forward { get; }
+
+    StatSheet Stats { get; }
+    CooldownStore Cooldowns { get; }
+    BuffContainer Buffs { get; }
+
+    bool IsEnemyOf(IBattleUnit other);
+    void TakeDamage(float amount, string damageType);
+    void Heal(float amount);
+}
+```
+
+在 `TakeDamage` 中应用项目特定的伤害减算逻辑（防御、抗性等）。Skill Creator 只计算 `value + 攻击力 × power`，最终应用委托给单位。
+
+## IUnitRegistry 集成
+
+`circle` / `cone` 目标选择需要查询周围单位。实现 `IUnitRegistry` 进行连接。
+
+```csharp
+public sealed class MyRegistry : IUnitRegistry
+{
+    private readonly List<IBattleUnit> _units = new();
+    public IReadOnlyList<IBattleUnit> AllUnits => _units;
+
+    public void Collect(Vector3 center, float radius, List<IBattleUnit> buffer)
+    {
+        float sqr = radius * radius;
+        foreach (var u in _units)
+            if ((u.Position - center).sqrMagnitude <= sqr)
+                buffer.Add(u);
+    }
+}
+```
+
+也可以用 `Physics.OverlapSphere` 实现，或遍历自己的单位列表。Skill Creator 从返回的候选中筛选**存活的敌人**，并使用至多 `maxTargets` 个。
+
+## 冷却时间
+
+`CooldownStore` 基于绝对时间，不需要每帧更新。默认时间提供者为 `Time.time`，可注入自定义提供者用于测试或暂停。
+
+```csharp
+var cooldowns = new CooldownStore(() => myGameClock.Now);
+```
+
+## 数据加载 / 热更新
+
+```csharp
+// 从 JSON 字符串加载
+system.LoadFromJson(skillsJson, buffsJson);
+
+// 直接从代码加载
+system.Database.LoadSkills(listOfSkillDefinitions);
+
+// 仅合并部分（运行时热更新）
+system.Database.AddSkills(patchedSkills);
+```
+
+`LoadSkills` 全量替换，`AddSkills` 按相同 id 覆盖合并。适合接收远程 JSON 后调用 `AddSkills` 进行热更新的流程。

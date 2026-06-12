@@ -1,0 +1,81 @@
+---
+title: コアコンセプト
+description: 実行フローと設計思想 — なぜデータ駆動なのか。
+---
+
+## 実行フロー
+
+すべてのスキルは同じパイプラインに従います。
+
+```text
+Trigger → Targeting → Condition → Effect → Result
+```
+
+| ステップ | 担当 | 説明 |
+| --- | --- | --- |
+| Trigger | `SkillRunner` | スキル使用リクエスト。クールダウンを確認する。 |
+| Targeting | `TargetResolver` | ターゲティング定義から実際のターゲットリストを計算する。 |
+| Condition | `ConditionEvaluator` | エフェクト実行前に条件をANDで検査する。 |
+| Effect | `EffectExecutor` | エフェクトリストを順次実行する。 |
+| Result | — | ダメージ/ヒール/バフ適用、クールダウン開始、ログ記録。 |
+
+`SkillRunner.Use` の実際の順序は以下の通りです。
+
+```text
+1. SkillDefinition の検索
+2. クールダウン確認
+3. ターゲットリスト計算
+4. 条件検査
+5. (詠唱時間待機 — UseRoutine のみ)
+6. エフェクトリストの順次実行
+7. クールダウン適用
+8. 実行ログ記録
+```
+
+## 小さな部品の組み合わせ
+
+スキルは巨大なクラスではなく、データ部品の組み合わせです。
+
+```text
+Skill
+ ├─ Targeting   (何を攻撃するか)
+ ├─ Condition[] (実行してよいか)
+ └─ Effect[]    (何をするか)
+```
+
+新しいスキルは**コードではなくデータ**で作られます。同じ `damage` / `add_buff` / `play_vfx` の部品を異なる組み合わせにするだけで、まったく異なるスキルになります。
+
+## なぜ ScriptableObject を最小限にするのか
+
+`ScriptableObject` は Unity Editor 内では便利ですが、コンテンツ量産ツールとして見ると限界があります。
+
+- 外部ツール（Spreadsheet/サーバー）との連携が不便
+- ランタイムパッチが難しい
+- 大量データのdiff確認が不便
+- プランナーが必ず Unity Editor を開く必要がある
+- 運用中のバランス修正反映フローが重い
+
+そのため Skill Creator は **JSON を一次保存形式**として使用し、以下の順序での運用を優先します。
+
+```text
+JSON → CSV → Google Spreadsheet Export → Remote Config → CDN → Addressables TextAsset
+```
+
+## 統合境界
+
+Skill Creator は特定の戦闘システムを強制しません。以下のインターフェースが境界です。
+
+| インターフェース | 役割 | 必須 |
+| --- | --- | --- |
+| `IBattleUnit` | 戦闘ユニット抽象化 | ✅ |
+| `IUnitRegistry` | 広域ターゲティング用ユニット検索 | circle/cone 使用時 |
+| `IVfxPlayer` / `ISfxPlayer` | 演出再生 | 任意 |
+| `ICombatLogger` | 実行ログ | 任意 |
+
+ユニットが持つ `StatSheet`、`CooldownStore`、`BuffContainer` は Skill Creator が提供するため、自分で実装する必要はありません。
+
+## MVPの範囲
+
+最初からノードグラフや完全な数式パーサーを作ることはしません。MVPは**データを作り、検証し、ランタイムで実行すること**までです。
+
+対応タイプについては [データフォーマット](/data-format) ドキュメントを参照してください。

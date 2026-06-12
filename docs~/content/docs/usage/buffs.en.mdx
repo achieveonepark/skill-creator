@@ -1,0 +1,92 @@
+---
+title: Buff System
+description: Runtime behavior of stack and refresh policies, periodic effects, and stat modifiers.
+---
+
+Buffs are centrally managed by `BuffController`. It handles application, stacking, refreshing, periodic effects, removal, and stat modifier application.
+
+## Applying and removing
+
+```csharp
+// Apply via an effect (skill effect: add_buff)
+system.Buffs.AddBuff(target, "burn", source: caster, overrideDuration: 5f);
+
+// Remove directly
+system.Buffs.RemoveBuff(target, "burn");
+```
+
+`onApplyEffects` runs once on application, and `onRemoveEffects` runs once on removal. Stat modifiers applied by the buff are precisely reverted when the buff is removed.
+
+## Stack policy (stackPolicy)
+
+Behavior when the same buff already exists.
+
+| Policy | Behavior |
+| --- | --- |
+| `stack` | Increases stacks up to `maxStack`. Stat modifiers are re-applied with the stack multiplier. |
+| `ignore` | New application is ignored (only refresh policy is applied) |
+| `replace` | Replaces the existing buff, stack remains at 1 |
+
+## Refresh policy (refreshPolicy)
+
+Handling of remaining duration on re-application.
+
+| Policy | Behavior |
+| --- | --- |
+| `refresh_duration` | Resets duration to full |
+| `keep` | Keeps remaining duration |
+
+## Periodic effects (periodicEffects)
+
+Effects repeat every `interval`. Used for damage-over-time like burn.
+
+```json
+"periodicEffects": [
+  { "type": "damage", "power": 0.3, "interval": 1.0, "damageType": "fire" }
+]
+```
+
+Timers are accumulative, so even if there is a frame drop, the number of triggers based on `interval` is preserved. Progression is handled by `system.Tick(deltaTime)`, which must be called every frame.
+
+## Stat modifiers (statModifiers)
+
+Changes unit stats while the buff is active.
+
+```json
+"statModifiers": [
+  { "statKey": "attack", "modifierType": "percent_add", "value": 0.2 }
+]
+```
+
+For `stack` policy buffs, modifiers are scaled by the stack count. For example, a +20% attack buff at 3 stacks results in a `percent_add` sum of 0.6.
+
+```text
+final attack = (base + sum of flat) × (1 + sum of percent_add) × Π(1 + percent_mul)
+```
+
+Each buff instance registers itself as a source token, so only that buff's modifiers are precisely removed on buff removal.
+
+## Full burn buff example
+
+```json
+{
+  "id": "burn",
+  "name": "Burn",
+  "duration": 5.0,
+  "maxStack": 3,
+  "stackPolicy": "stack",
+  "refreshPolicy": "refresh_duration",
+  "statModifiers": [],
+  "periodicEffects": [
+    { "type": "damage", "power": 0.3, "interval": 1.0, "damageType": "fire" }
+  ]
+}
+```
+
+- 5 seconds duration, maximum 3 stacks
+- Fire damage of `attack × 0.3` every 1 second
+- Re-application adds a stack and resets duration
+
+## Dead unit cleanup
+
+If the owning unit dies during `Tick`, that unit's buff instances are automatically cleaned up and removed from the active list.

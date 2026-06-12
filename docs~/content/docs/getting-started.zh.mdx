@@ -1,0 +1,118 @@
+---
+title: 快速开始
+description: 从安装 Skill Creator 到运行第一个技能。
+---
+
+## 安装
+
+在 Unity Package Manager 中选择 **Add package from git URL**，输入以下地址。
+
+```
+https://github.com/achieveonepark/skill-creator.git
+```
+
+或直接添加到 `Packages/manifest.json`。
+
+```json
+{
+  "dependencies": {
+    "com.skillforge.core": "https://github.com/achieveonepark/skill-creator.git"
+  }
+}
+```
+
+最低要求是 **Unity 2021.3 或更高版本**，无外部包依赖。
+
+## 1. 实现集成边界
+
+Skill Creator 不会强制要求你使用特定的战斗系统。只需实现两个接口即可接入。
+
+- `IBattleUnit` — 战斗单位（角色/怪物）
+- `IUnitRegistry` — 用于范围目标选择的单位查询
+
+`Stats` / `Cooldowns` / `Buffs` 可直接使用 Skill Creator 提供的实现（`StatSheet`、`CooldownStore`、`BuffContainer`）。
+
+```csharp
+public sealed class MyUnit : MonoBehaviour, IBattleUnit
+{
+    [SerializeField] private int _team;
+    [SerializeField] private float _maxHp = 1000f, _attack = 100f;
+    private float _hp;
+
+    public string Id => name;
+    public StatSheet Stats { get; private set; }
+    public CooldownStore Cooldowns { get; private set; }
+    public BuffContainer Buffs { get; private set; }
+
+    public bool IsAlive => _hp > 0f;
+    public float HpRatio => _hp / _maxHp;
+    public Vector3 Position => transform.position;
+    public Vector3 Forward => transform.forward;
+
+    void Awake()
+    {
+        Stats = new StatSheet();
+        Stats.SetBase("attack", _attack);
+        Cooldowns = new CooldownStore();
+        Buffs = new BuffContainer();
+        _hp = _maxHp;
+    }
+
+    public bool IsEnemyOf(IBattleUnit other) => other is MyUnit u && u._team != _team;
+    public void TakeDamage(float amount, string damageType) => _hp = Mathf.Max(0, _hp - amount);
+    public void Heal(float amount) => _hp = Mathf.Min(_maxHp, _hp + amount);
+}
+```
+
+<Callout title="提供示例">
+在 Package Manager 中导入 **Samples → Basic Setup**，可获得上述实现（`SampleBattleUnit`）、
+`SampleUnitRegistry`、启动示例以及示例 JSON 文件。
+</Callout>
+
+## 2. 配置系统
+
+`SkillSystem` 门面类一次性连接数据库、运行器和增益控制器。
+
+```csharp
+var system = new SkillSystem(
+    registry: myUnitRegistry,
+    vfxPlayer: myVfxPlayer,   // 可选 (可为 null)
+    sfxPlayer: mySfxPlayer,   // 可选 (可为 null)
+    logger: UnityCombatLogger.Instance);
+
+system.LoadFromJson(skillsJson, buffsJson);
+```
+
+## 3. 每帧推进
+
+每帧调用 `Tick` 以推进增益持续时间和周期效果。
+
+```csharp
+void Update() => system.Tick(Time.deltaTime);
+```
+
+## 4. 使用技能
+
+```csharp
+// 立即执行（忽略施法时间）
+SkillUseResult result = system.Use("fire_slash", caster, target);
+if (!result.Success)
+    Debug.Log(result.Status); // SkillNotFound / OnCooldown / NoTargets / ConditionFailed
+
+// 等待施法时间请使用协程
+StartCoroutine(system.Runner.UseRoutine("fire_slash", caster, target,
+    r => Debug.Log(r.Status)));
+```
+
+## 数据存储位置
+
+开发阶段和运营阶段推荐的存储位置不同。
+
+| 阶段 | 位置 |
+| --- | --- |
+| 开发中 | `Assets/GameData/Skills/skills.json` |
+| 打包进构建 | `StreamingAssets/GameData/skills.json` |
+| 运行时热更 | `Application.persistentDataPath/GameData/skills.json` |
+| 远程 | `CDN/GameData/skills.json` |
+
+`SkillDataLoader` 只接收字符串，因此无论从哪里读取，行为完全一致。

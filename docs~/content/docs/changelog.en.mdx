@@ -1,0 +1,29 @@
+---
+title: Changelog
+description: Skill Creator release notes.
+---
+
+## 0.1.0 — 2026-06-12
+
+First release. MVP of the data-driven skill/buff system.
+
+### Added
+
+- **Data definitions** — `SkillDefinition`, `BuffDefinition`, `TargetingDefinition`, `ConditionDefinition`, `EffectDefinition`, `StatModifierDefinition` (JSON-serializable)
+- **Runtime** — `SkillSystem` facade, `SkillRunner`, `TargetResolver`, `ConditionEvaluator`, `EffectExecutor`, `BuffController`, `SkillDatabase`, `SkillDataLoader`
+- **Integration boundaries** — `IBattleUnit`, `IUnitRegistry`, `IVfxPlayer`, `ISfxPlayer`, `ICombatLogger`
+- **Support implementations** — `StatSheet`, `CooldownStore`, `BuffContainer`, `BuffInstance`
+- **Validation** — `DataValidator`, `ValidationReport`
+- **Editor tools** — Skill Editor, Buff Editor, Preview Simulator, JSON Exporter
+- **Sample** — Basic Setup (example unit/registry/bootstrap, skills.json, buffs.json)
+
+### Supported types
+
+| Category | Values |
+| --- | --- |
+| Targeting | `self`, `single_enemy`, `circle`, `cone` |
+| Condition | `always`, `alive`, `chance`, `hp_below`, `hp_above`, `has_buff`, `not_has_buff`, `target_count_above`, `target_count_below` |
+| Effect | `damage`, `heal`, `add_buff`, `remove_buff`, `play_vfx`, `play_sfx` |
+| StackPolicy | `stack`, `ignore`, `replace` |
+| RefreshPolicy | `refresh_duration`, `keep` |
+| StatModifier | `flat`, `percent_add`, `percent_mul` |
