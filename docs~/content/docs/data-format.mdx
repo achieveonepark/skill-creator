@@ -1,0 +1,141 @@
+---
+title: 데이터 포맷
+description: 스킬·버프 JSON 스키마와 지원 타입 레퍼런스.
+---
+
+스킬과 버프는 각각 `skills.json`, `buffs.json` 에 정의합니다. 루트는 객체 래퍼(`{ "skills": [...] }`) 또는 최상위 배열(`[...]`) 둘 다 지원합니다.
+
+## SkillDefinition
+
+```json
+{
+  "id": "fire_slash",
+  "name": "화염 검기",
+  "cooldown": 5.0,
+  "castTime": 0.3,
+  "targeting": { "type": "cone", "range": 5.0, "angle": 60, "maxTargets": 5 },
+  "conditions": [{ "type": "alive" }],
+  "effects": [
+    { "type": "damage", "power": 1.8, "damageType": "physical" },
+    { "type": "add_buff", "buffId": "burn", "duration": 5.0 },
+    { "type": "play_vfx", "vfxId": "fire_slash_vfx" }
+  ]
+}
+```
+
+| 필드 | 타입 | 설명 |
+| --- | --- | --- |
+| `id` | string | 고유 식별자 (필수, 중복 불가) |
+| `name` | string | 표시 이름 |
+| `cooldown` | float | 쿨타임(초). 음수 불가 |
+| `castTime` | float | 캐스팅 시간(초). 음수 불가 |
+| `targeting` | object | 타겟팅 정의 |
+| `conditions` | array | 실행 조건 목록 (AND) |
+| `effects` | array | 효과 목록 (1개 이상 필수) |
+
+## Targeting
+
+```json
+{ "type": "cone", "range": 5.0, "radius": 0, "angle": 60, "maxTargets": 5 }
+```
+
+| 필드 | 설명 |
+| --- | --- |
+| `type` | 타겟팅 방식 (아래 표) |
+| `range` | cone 사거리 |
+| `radius` | circle 반경 |
+| `angle` | cone 부채꼴 각도(도) |
+| `maxTargets` | 최대 타겟 수. 0 이하면 제한 없음 |
+
+| `type` | 동작 |
+| --- | --- |
+| `self` | 시전자 자신 |
+| `single_enemy` | 입력 타겟 1명 |
+| `circle` | 반경 내 적 (레지스트리 필요) |
+| `cone` | 사거리·각도 내 적 (레지스트리 필요) |
+
+## Condition
+
+조건은 효과 실행 전에 검사하며, 하나라도 실패하면 스킬이 실행되지 않습니다.
+
+```json
+{ "type": "chance", "value": 0.3 }
+{ "type": "hp_below", "value": 0.5 }
+{ "type": "has_buff", "key": "burn" }
+```
+
+| `type` | 사용 필드 | 의미 |
+| --- | --- | --- |
+| `always` | — | 항상 통과 |
+| `alive` | — | 살아있는 타겟이 있으면 통과 |
+| `chance` | `value` | 확률(0~1) |
+| `hp_below` | `value` | HP 비율 ≤ value 인 타겟 존재 |
+| `hp_above` | `value` | HP 비율 ≥ value 인 타겟 존재 |
+| `has_buff` | `key` | 해당 버프 보유 타겟 존재 |
+| `not_has_buff` | `key` | 모든 타겟이 해당 버프 미보유 |
+| `target_count_above` | `value` | 타겟 수 ≥ value |
+| `target_count_below` | `value` | 타겟 수 ≤ value |
+
+## Effect
+
+```json
+{ "type": "damage", "power": 1.8, "value": 0, "damageType": "physical" }
+{ "type": "heal", "power": 2.0 }
+{ "type": "add_buff", "buffId": "burn", "duration": 5.0 }
+{ "type": "play_vfx", "vfxId": "fire_slash_vfx" }
+```
+
+| `type` | 사용 필드 | 의미 |
+| --- | --- | --- |
+| `damage` | `power`, `value`, `damageType` | 데미지 = `value + 공격력 × power` |
+| `heal` | `power`, `value` | 힐량 = `value + 공격력 × power` |
+| `add_buff` | `buffId`, `duration` | 버프 부여 (`duration` 0 이면 버프 기본값) |
+| `remove_buff` | `buffId` | 버프 제거 |
+| `play_vfx` | `vfxId` | VFX 재생 |
+| `play_sfx` | `sfxId` | SFX 재생 |
+
+## BuffDefinition
+
+```json
+{
+  "id": "burn",
+  "name": "화상",
+  "duration": 5.0,
+  "maxStack": 3,
+  "stackPolicy": "stack",
+  "refreshPolicy": "refresh_duration",
+  "statModifiers": [],
+  "onApplyEffects": [],
+  "periodicEffects": [
+    { "type": "damage", "power": 0.3, "interval": 1.0, "damageType": "fire" }
+  ],
+  "onRemoveEffects": []
+}
+```
+
+| 필드 | 설명 |
+| --- | --- |
+| `duration` | 지속시간(초). 0 보다 커야 함 |
+| `maxStack` | 최대 스택. 1 이상 |
+| `stackPolicy` | `stack` / `ignore` / `replace` |
+| `refreshPolicy` | `refresh_duration` / `keep` |
+| `statModifiers` | 스탯 수정자 목록 |
+| `onApplyEffects` | 적용 시 1회 실행 |
+| `periodicEffects` | `interval` 마다 반복 실행 |
+| `onRemoveEffects` | 해제 시 1회 실행 |
+
+## StatModifier
+
+```json
+{ "statKey": "attack", "modifierType": "percent_add", "value": 0.2 }
+```
+
+| `modifierType` | 계산 |
+| --- | --- |
+| `flat` | base + value |
+| `percent_add` | × (1 + Σ value) — 같은 스탯끼리 합연산 |
+| `percent_mul` | × (1 + value) — 곱연산 |
+
+최종 값 = `(base + flat합) × (1 + percent_add합) × Π(1 + percent_mul)`.
+
+버프 정책과 스탯 합연산의 자세한 동작은 [버프 시스템](/buffs) 문서를 참고하세요.

@@ -1,0 +1,29 @@
+---
+title: 변경 이력
+description: SkillForge 릴리스 노트.
+---
+
+## 0.1.0 — 2026-06-12
+
+첫 릴리스. 데이터 기반 스킬/버프 시스템의 MVP.
+
+### 추가됨
+
+- **데이터 정의** — `SkillDefinition`, `BuffDefinition`, `TargetingDefinition`, `ConditionDefinition`, `EffectDefinition`, `StatModifierDefinition` (JSON 직렬화)
+- **런타임** — `SkillSystem` 파사드, `SkillRunner`, `TargetResolver`, `ConditionEvaluator`, `EffectExecutor`, `BuffController`, `SkillDatabase`, `SkillDataLoader`
+- **통합 경계** — `IBattleUnit`, `IUnitRegistry`, `IVfxPlayer`, `ISfxPlayer`, `ICombatLogger`
+- **지원 구현체** — `StatSheet`, `CooldownStore`, `BuffContainer`, `BuffInstance`
+- **검증** — `DataValidator`, `ValidationReport`
+- **에디터 도구** — Skill Editor, Buff Editor, Preview Simulator, JSON Exporter
+- **샘플** — Basic Setup (예제 유닛/레지스트리/부트스트랩, skills.json, buffs.json)
+
+### 지원 타입
+
+| 분류 | 값 |
+| --- | --- |
+| Targeting | `self`, `single_enemy`, `circle`, `cone` |
+| Condition | `always`, `alive`, `chance`, `hp_below`, `hp_above`, `has_buff`, `not_has_buff`, `target_count_above`, `target_count_below` |
+| Effect | `damage`, `heal`, `add_buff`, `remove_buff`, `play_vfx`, `play_sfx` |
+| StackPolicy | `stack`, `ignore`, `replace` |
+| RefreshPolicy | `refresh_duration`, `keep` |
+| StatModifier | `flat`, `percent_add`, `percent_mul` |

@@ -1,0 +1,127 @@
+---
+title: 런타임
+description: SkillSystem 파사드와 전투 시스템 통합.
+---
+
+## SkillSystem 파사드
+
+`SkillSystem` 은 데이터베이스, 러너, 타겟 리졸버, 조건 평가기, 효과 실행기, 버프 컨트롤러를 한 번에 배선하는 진입점입니다.
+
+```csharp
+var system = new SkillSystem(registry, vfxPlayer, sfxPlayer, logger);
+system.LoadFromJson(skillsJson, buffsJson);
+
+void Update() => system.Tick(Time.deltaTime);
+
+system.Use("fire_slash", caster, target);
+```
+
+내부 구성요소는 속성으로 직접 접근할 수 있습니다.
+
+| 속성 | 타입 |
+| --- | --- |
+| `Database` | `SkillDatabase` |
+| `Runner` | `SkillRunner` |
+| `Buffs` | `BuffController` |
+| `Targeting` | `TargetResolver` |
+| `Conditions` | `ConditionEvaluator` |
+| `Effects` | `EffectExecutor` |
+
+## 스킬 실행
+
+### 즉시 실행
+
+```csharp
+SkillUseResult result = system.Use("fire_slash", caster, target);
+```
+
+`SkillUseResult.Status` 로 실패 원인을 알 수 있습니다.
+
+| Status | 의미 |
+| --- | --- |
+| `Success` | 정상 실행 |
+| `SkillNotFound` | 정의 없음 |
+| `OnCooldown` | 쿨타임 중 |
+| `NoTargets` | 타겟 없음 |
+| `ConditionFailed` | 조건 실패 |
+
+### 캐스팅 시간 처리
+
+`Use` 는 캐스팅 시간을 무시합니다. 캐스팅을 기다리려면 코루틴 `UseRoutine` 을 사용합니다.
+
+```csharp
+StartCoroutine(system.Runner.UseRoutine("fire_slash", caster, target,
+    onComplete: r => Debug.Log(r.Status)));
+```
+
+UniTask 등 외부 비동기 라이브러리에 의존하지 않도록 표준 `IEnumerator` 코루틴으로 제공합니다.
+
+## IBattleUnit 통합
+
+전투 유닛은 `IBattleUnit` 을 구현합니다. `Stats` / `Cooldowns` / `Buffs` 는 SkillForge 제공 구현체를 그대로 씁니다.
+
+```csharp
+public interface IBattleUnit
+{
+    string Id { get; }
+    bool IsAlive { get; }
+    float HpRatio { get; }
+    Vector3 Position { get; }
+    Vector3 Forward { get; }
+
+    StatSheet Stats { get; }
+    CooldownStore Cooldowns { get; }
+    BuffContainer Buffs { get; }
+
+    bool IsEnemyOf(IBattleUnit other);
+    void TakeDamage(float amount, string damageType);
+    void Heal(float amount);
+}
+```
+
+`TakeDamage` 안에서 방어력·저항 등 프로젝트 고유의 데미지 감산 로직을 적용하면 됩니다. SkillForge 는 `value + 공격력 × power` 까지만 계산하고 최종 적용은 유닛에 위임합니다.
+
+## IUnitRegistry 통합
+
+`circle` / `cone` 타겟팅은 주변 유닛 조회가 필요합니다. `IUnitRegistry` 를 구현해 연결합니다.
+
+```csharp
+public sealed class MyRegistry : IUnitRegistry
+{
+    private readonly List<IBattleUnit> _units = new();
+    public IReadOnlyList<IBattleUnit> AllUnits => _units;
+
+    public void Collect(Vector3 center, float radius, List<IBattleUnit> buffer)
+    {
+        float sqr = radius * radius;
+        foreach (var u in _units)
+            if ((u.Position - center).sqrMagnitude <= sqr)
+                buffer.Add(u);
+    }
+}
+```
+
+`Physics.OverlapSphere` 로 구현해도 되고, 자체 유닛 목록을 순회해도 됩니다. SkillForge 는 반환된 후보 중 **살아있는 적**만 추려 `maxTargets` 까지 사용합니다.
+
+## 쿨타임
+
+`CooldownStore` 는 절대 시간 기준이라 매 프레임 갱신이 필요 없습니다. 기본 시간 제공자는 `Time.time` 이며, 테스트나 일시정지를 위해 커스텀 제공자를 주입할 수 있습니다.
+
+```csharp
+var cooldowns = new CooldownStore(() => myGameClock.Now);
+```
+
+## 데이터 로드 / 패치
+
+```csharp
+// JSON 문자열로 로드
+system.LoadFromJson(skillsJson, buffsJson);
+
+// 코드로 직접 로드
+system.Database.LoadSkills(listOfSkillDefinitions);
+
+// 일부만 병합 (런타임 패치)
+system.Database.AddSkills(patchedSkills);
+```
+
+`LoadSkills` 는 전체 교체, `AddSkills` 는 같은 id 덮어쓰기 병합입니다. 원격 JSON 을 받아 `AddSkills` 로 핫패치하는 흐름에 적합합니다.

@@ -1,0 +1,13 @@
+{
+  "pages": [
+    "index",
+    "getting-started",
+    "concepts",
+    "data-format",
+    "runtime",
+    "buffs",
+    "editor-tools",
+    "api",
+    "changelog"
+  ]
+}

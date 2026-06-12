@@ -1,0 +1,88 @@
+---
+title: 에디터 도구
+description: Skill / Buff Editor, Preview Simulator, 데이터 검증.
+---
+
+`Tools/SkillForge` 메뉴에서 세 가지 에디터 창을 사용할 수 있습니다. 모두 JSON 파일을 직접 읽고 씁니다.
+
+## Skill Editor
+
+`Tools/SkillForge/Skill Editor`
+
+- 스킬 목록 보기 / 추가 / 삭제 / 복제
+- id, 이름, 쿨타임, 캐스팅 시간 편집
+- 타겟팅 타입 선택과 파라미터 입력
+- 조건 추가 / 삭제
+- 효과 추가 / 삭제 (타입별 필드 자동 표시)
+- **Save** — JSON 저장
+- **Validate** — 데이터 검증
+
+타겟팅·조건·효과 타입은 드롭다운으로 선택하므로 오타가 생기지 않습니다. 미지원 값이 들어와도 목록에 "(미지원)" 으로 표시해 보존합니다.
+
+## Buff Editor
+
+`Tools/SkillForge/Buff Editor`
+
+- 버프 목록 / 추가 / 삭제 / 복제
+- 지속시간, 최대 스택, 스택·갱신 정책 편집
+- 스탯 수정자 추가
+- 주기 / 적용 / 해제 효과 편집
+- Save / Validate
+
+## Preview Simulator
+
+`Tools/SkillForge/Preview Simulator`
+
+실제 전투 없이 스킬을 시뮬레이션해 밸런스를 검증합니다.
+
+입력:
+
+- 캐스터 공격력
+- 대상 방어력
+- 대상 수
+- 대상 HP 비율
+- 시뮬레이션 시간(버프 주기 효과 진행용)
+
+더미 캐스터/타겟을 만들어 `SkillSystem` 을 그대로 구동하고, 실행 로그와 적용 결과를 보여줍니다.
+
+```text
+fire_slash used by Caster
+Target resolved: Target_1, Target_2
+Damage: Target_1 - 180 (physical)
+Damage: Target_2 - 180 (physical)
+Buff Applied: burn to Target_1
+Result: Success, Targets: 2
+```
+
+## 데이터 검증
+
+검증은 단순 입력 도구보다 더 가치 있는 기능입니다. **잘못된 데이터를 런타임 전에 막아줍니다.**
+
+`DataValidator` 는 에디터·런타임 어디서나 호출할 수 있습니다.
+
+```csharp
+ValidationReport report = DataValidator.Validate(skills, buffs);
+if (report.HasErrors)
+    Debug.LogError(report); // 오류/경고 목록 출력
+```
+
+### 스킬 검증 항목
+
+- id 비어있음 / 중복
+- cooldown · castTime 음수
+- targeting.type 미지원
+- effects 최소 1개
+- effect.type 미지원
+- `add_buff` 의 buffId 존재 여부
+- `play_vfx` 의 vfxId (known 집합 전달 시 경고)
+
+### 버프 검증 항목
+
+- id 비어있음 / 중복
+- duration ≤ 0
+- maxStack < 1
+- stackPolicy · refreshPolicy 미지원
+- periodicEffect.interval ≤ 0
+- statModifier.statKey / modifierType
+
+`ValidationReport.ToString()` 은 사람이 읽기 좋은 오류·경고 요약을 반환합니다.

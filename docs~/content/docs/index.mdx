@@ -1,0 +1,68 @@
+---
+title: SkillForge
+description: Unity에서 스킬·버프·타겟팅·조건·효과를 데이터 조합으로 제작하고 검증하는 콘텐츠 제작 도구.
+---
+
+**SkillForge** 는 Unity에서 스킬과 버프를 코드 하드코딩 없이 **데이터(JSON) 기반**으로 제작할 수 있는 콘텐츠 제작 도구입니다.
+
+스킬 하나를 거대한 클래스로 만들지 않고, 작은 기능 조각들을 데이터로 조합합니다. `ScriptableObject` 의존을 최소화하고 JSON / CSV / Spreadsheet / Remote Data 기반으로 운용할 수 있습니다.
+
+```text
+Trigger → Targeting → Condition → Effect → Result
+```
+
+## 무엇을 해결하나요
+
+이 도구의 본질은 스킬 시스템 자체가 아니라 **콘텐츠 제작 파이프라인**입니다.
+
+| 좋은 방향 | 나쁜 방향 |
+| --- | --- |
+| 기획자가 데이터를 만든다 | 스킬마다 클래스를 만든다 |
+| 툴이 오류를 잡아준다 | 예외 스킬이 계속 늘어난다 |
+| 런타임은 데이터를 그대로 실행한다 | 데이터는 있지만 결국 코드 수정이 필요하다 |
+| 시뮬레이터가 밸런스를 검증한다 | 검증 없이 런타임에서 터진다 |
+| 운영 데이터로 쉽게 교체할 수 있다 | Unity Editor 안에서만 수정 가능하다 |
+
+## 한눈에 보기
+
+스킬 하나는 이런 JSON 으로 표현됩니다.
+
+```json
+{
+  "id": "fire_slash",
+  "name": "화염 검기",
+  "cooldown": 5.0,
+  "castTime": 0.3,
+  "targeting": { "type": "cone", "range": 5.0, "angle": 60, "maxTargets": 5 },
+  "conditions": [{ "type": "alive" }],
+  "effects": [
+    { "type": "damage", "power": 1.8, "damageType": "physical" },
+    { "type": "add_buff", "buffId": "burn", "duration": 5.0 },
+    { "type": "play_vfx", "vfxId": "fire_slash_vfx" }
+  ]
+}
+```
+
+런타임은 이 데이터를 그대로 실행합니다.
+
+```csharp
+var system = new SkillSystem(unitRegistry, vfxPlayer, sfxPlayer, UnityCombatLogger.Instance);
+system.LoadFromJson(skillsJson, buffsJson);
+
+system.Use("fire_slash", caster, target);
+```
+
+## 핵심 특징
+
+- **외부 의존성 0** — Unity 내장 `JsonUtility` 만 사용합니다. UniTask·Newtonsoft 가 필요 없습니다.
+- **통합 경계 인터페이스** — `IBattleUnit` 만 구현하면 어떤 전투 시스템과도 연결됩니다.
+- **검증 우선** — 잘못된 데이터를 런타임 전에 `DataValidator` 가 막아줍니다.
+- **에디터 도구** — Skill / Buff Editor, Preview Simulator 제공.
+- **런타임 패치 가능** — JSON 만 교체하면 밸런스가 즉시 반영됩니다.
+
+## 다음 단계
+
+- [시작하기](/getting-started) — 설치와 첫 스킬 실행
+- [핵심 컨셉](/concepts) — 실행 흐름과 설계 철학
+- [데이터 포맷](/data-format) — 스킬·버프 JSON 레퍼런스
+- [런타임](/runtime) — `SkillSystem` 과 통합 방법

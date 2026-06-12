@@ -1,0 +1,118 @@
+---
+title: 시작하기
+description: SkillForge 설치부터 첫 스킬 실행까지.
+---
+
+## 설치
+
+Unity Package Manager 에서 **Add package from git URL** 을 선택하고 다음 주소를 입력합니다.
+
+```
+https://github.com/achieveonepark/skill-creator.git
+```
+
+또는 `Packages/manifest.json` 에 직접 추가합니다.
+
+```json
+{
+  "dependencies": {
+    "com.skillforge.core": "https://github.com/achieveonepark/skill-creator.git"
+  }
+}
+```
+
+요구 사항은 **Unity 2021.3 이상** 입니다. 외부 패키지 의존성은 없습니다.
+
+## 1. 통합 경계 구현
+
+SkillForge 는 여러분의 전투 시스템을 강제하지 않습니다. 대신 두 인터페이스만 구현하면 연결됩니다.
+
+- `IBattleUnit` — 전투 유닛 (캐릭터/몬스터)
+- `IUnitRegistry` — 광역 타겟팅을 위한 유닛 조회
+
+`Stats` / `Cooldowns` / `Buffs` 는 SkillForge 가 제공하는 구현체(`StatSheet`, `CooldownStore`, `BuffContainer`)를 그대로 사용하면 됩니다.
+
+```csharp
+public sealed class MyUnit : MonoBehaviour, IBattleUnit
+{
+    [SerializeField] private int _team;
+    [SerializeField] private float _maxHp = 1000f, _attack = 100f;
+    private float _hp;
+
+    public string Id => name;
+    public StatSheet Stats { get; private set; }
+    public CooldownStore Cooldowns { get; private set; }
+    public BuffContainer Buffs { get; private set; }
+
+    public bool IsAlive => _hp > 0f;
+    public float HpRatio => _hp / _maxHp;
+    public Vector3 Position => transform.position;
+    public Vector3 Forward => transform.forward;
+
+    void Awake()
+    {
+        Stats = new StatSheet();
+        Stats.SetBase("attack", _attack);
+        Cooldowns = new CooldownStore();
+        Buffs = new BuffContainer();
+        _hp = _maxHp;
+    }
+
+    public bool IsEnemyOf(IBattleUnit other) => other is MyUnit u && u._team != _team;
+    public void TakeDamage(float amount, string damageType) => _hp = Mathf.Max(0, _hp - amount);
+    public void Heal(float amount) => _hp = Mathf.Min(_maxHp, _hp + amount);
+}
+```
+
+<Callout title="샘플 제공">
+Package Manager 의 **Samples → Basic Setup** 을 임포트하면 위 구현(`SampleBattleUnit`)과
+`SampleUnitRegistry`, 부트스트랩 예제, 예제 JSON 이 함께 제공됩니다.
+</Callout>
+
+## 2. 시스템 구성
+
+`SkillSystem` 파사드가 데이터베이스·러너·버프 컨트롤러를 한 번에 배선합니다.
+
+```csharp
+var system = new SkillSystem(
+    registry: myUnitRegistry,
+    vfxPlayer: myVfxPlayer,   // 선택 (null 가능)
+    sfxPlayer: mySfxPlayer,   // 선택 (null 가능)
+    logger: UnityCombatLogger.Instance);
+
+system.LoadFromJson(skillsJson, buffsJson);
+```
+
+## 3. 매 프레임 진행
+
+버프의 지속시간과 주기 효과를 진행하려면 매 프레임 `Tick` 을 호출합니다.
+
+```csharp
+void Update() => system.Tick(Time.deltaTime);
+```
+
+## 4. 스킬 사용
+
+```csharp
+// 즉시 실행 (캐스팅 시간 무시)
+SkillUseResult result = system.Use("fire_slash", caster, target);
+if (!result.Success)
+    Debug.Log(result.Status); // SkillNotFound / OnCooldown / NoTargets / ConditionFailed
+
+// 캐스팅 시간을 기다리려면 코루틴
+StartCoroutine(system.Runner.UseRoutine("fire_slash", caster, target,
+    r => Debug.Log(r.Status)));
+```
+
+## 데이터 위치
+
+개발 단계와 운영 단계에 따라 권장 저장 위치가 다릅니다.
+
+| 단계 | 위치 |
+| --- | --- |
+| 개발 중 | `Assets/GameData/Skills/skills.json` |
+| 빌드 포함 | `StreamingAssets/GameData/skills.json` |
+| 런타임 패치 | `Application.persistentDataPath/GameData/skills.json` |
+| 원격 | `CDN/GameData/skills.json` |
+
+`SkillDataLoader` 는 문자열만 받으므로, 어디서 읽어오든 동일하게 동작합니다.
