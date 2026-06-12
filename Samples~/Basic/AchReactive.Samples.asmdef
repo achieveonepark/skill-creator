@@ -1,0 +1,16 @@
+{
+  "name": "AchReactive.Samples",
+  "rootNamespace": "AchReactive.Samples",
+  "references": [
+    "AchReactive.Runtime"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

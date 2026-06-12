@@ -1,0 +1,33 @@
+[
+  {
+    "id": "fire_slash",
+    "cooldown": 5.0,
+    "castTime": 0.3,
+    "reactions": [
+      {
+        "trigger": "on_use",
+        "conditions": [
+          { "type": "alive" }
+        ],
+        "effects": [
+          { "type": "damage", "params": { "power": 1.8 } },
+          { "type": "log", "params": { "message": "fire_slash 명중!" } }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "heal_word",
+    "cooldown": 8.0,
+    "castTime": 0.5,
+    "reactions": [
+      {
+        "trigger": "on_use",
+        "effects": [
+          { "type": "heal", "params": { "flat": 30.0 } },
+          { "type": "log", "params": { "message": "heal_word 회복!" } }
+        ]
+      }
+    ]
+  }
+]

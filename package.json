@@ -20,5 +20,12 @@
   ],
   "author": {
     "name": "achieveone"
-  }
+  },
+  "samples": [
+    {
+      "displayName": "Basic",
+      "description": "IEntity/IWorld 구현, reaction 형식 스킬 데이터, 부트스트랩 예제를 포함합니다.",
+      "path": "Samples~/Basic"
+    }
+  ]
 }
