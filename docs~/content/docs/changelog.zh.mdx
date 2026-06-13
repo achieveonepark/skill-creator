@@ -1,29 +1,30 @@
 ---
-title: 更新日志
-description: Skill Creator 发布说明。
+title: 变更历史
+description: AchReactive 发布说明。
 ---
 
-## 0.1.0 — 2026-06-12
+## 0.1.0
 
-首次发布。数据驱动技能/增益系统的 MVP。
+首次公开。从技能专用工具（Skill Creator）转变为**领域无关响应式框架 AchReactive**。
 
 ### 新增
 
-- **数据定义** — `SkillDefinition`、`BuffDefinition`、`TargetingDefinition`、`ConditionDefinition`、`EffectDefinition`、`StatModifierDefinition`（支持 JSON 序列化）
-- **运行时** — `SkillSystem` 门面、`SkillRunner`、`TargetResolver`、`ConditionEvaluator`、`EffectExecutor`、`BuffController`、`SkillDatabase`、`SkillDataLoader`
-- **集成边界** — `IBattleUnit`、`IUnitRegistry`、`IVfxPlayer`、`ISfxPlayer`、`ICombatLogger`
-- **支持实现** — `StatSheet`、`CooldownStore`、`BuffContainer`、`BuffInstance`
-- **验证** — `DataValidator`、`ValidationReport`
-- **编辑器工具** — Skill Editor、Buff Editor、Preview Simulator、JSON Exporter
-- **示例** — Basic Setup（示例单位/注册表/启动引导、skills.json、buffs.json）
+- **Data Layer** — `IData`、`IDataLoader<T>`、`DataBase<T>`（不使用 typeof）
+- **Loader** — `JsonDataLoader<T>`（Newtonsoft）、`CsvDataLoader<T>` + `ICsvMapper<T>`
+- **Reaction Layer** — `Reaction`、`EntityData`、`ParamBag`、`ReactionContext`、`ReactionEngine`
+- **Registry** — `Effect/Condition/TriggerRegistry`（Attribute 自动收集 + 手动注册）
+- **基础动作池** — effect 8 种、condition 8 种、trigger 守卫 1 种
+- **集成边界** — `IEntity`、`IWorld`、`StatSheet`、`CooldownStore`
+- **UIToolkit 创作工具** — Type Designer（代码生成）、Data Editor（数据生成）
+- **Basic 示例** — 技能 + 怪物两个领域的示例
 
-### 支持类型
+### 变更
 
-| 分类 | 值 |
-| --- | --- |
-| Targeting | `self`, `single_enemy`, `circle`, `cone` |
-| Condition | `always`, `alive`, `chance`, `hp_below`, `hp_above`, `has_buff`, `not_has_buff`, `target_count_above`, `target_count_below` |
-| Effect | `damage`, `heal`, `add_buff`, `remove_buff`, `play_vfx`, `play_sfx` |
-| StackPolicy | `stack`, `ignore`, `replace` |
-| RefreshPolicy | `refresh_duration`, `keep` |
-| StatModifier | `flat`, `percent_add`, `percent_mul` |
+- 包名 `com.achieve.skill-creator` → `com.achieve.reactive`
+- 命名空间 → `AchReactive`
+- `JsonUtility` → `Newtonsoft.Json`（移除包装类）
+
+### 移除
+
+- 技能专用的遗留代码（`SkillSystem`/`SkillRunner`/`EffectExecutor` 等）
+- 增益持续/叠加系统因需要重新设计运行时状态而暂时搁置（后续计划）

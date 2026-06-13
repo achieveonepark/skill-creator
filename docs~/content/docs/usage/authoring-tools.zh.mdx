@@ -1,88 +1,60 @@
 ---
-title: 编辑器工具
-description: Skill / Buff Editor、Preview Simulator 与数据验证。
+title: 创作工具
+description: 基于 UIToolkit 的 Type Designer 与 Data Editor。
 ---
 
-在 `Tools/Skill Creator` 菜单中可以使用三个编辑器窗口，所有窗口均直接读写 JSON 文件。
+无需用 JSON 手写数据。两个 UIToolkit 编辑器窗口会生成代码与数据。
 
-## Skill Editor
+## Type Designer — 从类型生成代码
 
-`Tools/Skill Creator/Skill Editor`
+菜单：**Tools ▸ AchReactive ▸ Type Designer**
 
-- 查看 / 添加 / 删除 / 复制技能列表
-- 编辑 id、名称、冷却时间、施法时间
-- 选择目标选择类型并输入参数
-- 添加 / 删除条件
-- 添加 / 删除效果（按类型自动显示字段）
-- **Save** — 保存 JSON
-- **Validate** — 验证数据
-
-目标选择、条件和效果类型通过下拉菜单选择，不会出现拼写错误。即使传入不支持的值，也会在列表中显示为"(不支持)"并保留。
-
-## Buff Editor
-
-`Tools/Skill Creator/Buff Editor`
-
-- 增益列表 / 添加 / 删除 / 复制
-- 编辑持续时间、最大层数、叠加与刷新策略
-- 添加属性修正
-- 编辑周期 / 施加 / 移除效果
-- Save / Validate
-
-## Preview Simulator
-
-`Tools/Skill Creator/Preview Simulator`
-
-在无需实际战斗的情况下模拟技能，验证数值平衡。
-
-输入：
-
-- 施法者攻击力
-- 目标防御力
-- 目标数量
-- 目标 HP 比例
-- 模拟时间（用于推进增益周期效果）
-
-创建虚拟施法者/目标，直接运行 `SkillSystem`，显示执行日志和应用结果。
-
-```text
-fire_slash used by Caster
-Target resolved: Target_1, Target_2
-Damage: Target_1 - 180 (physical)
-Damage: Target_2 - 180 (physical)
-Buff Applied: burn to Target_1
-Result: Success, Targets: 2
+```
+Type Name:   [ Monster        ]
+Base Type:   [ EntityData ▾   ]
+Output:      [ Assets/Generated ]
+Fields:
+  [ hp        ] [ Float    ▾ ] [−]
+  [ dropTable ] [ StringArray ▾ ] [−]
+  [ + Add Field ]
+                              [ Generate ]
 ```
 
-## 数据验证
+点击 **Generate** 会生成两个文件。
 
-验证比简单的输入工具更有价值。**它在运行时之前拦截无效数据。**
+- `MonsterData.cs` — 继承 `EntityData` 的 `IData` 实现（兼容 Newtonsoft）
+- `MonsterCsvMapper.cs` — `ICsvMapper<MonsterData>` 实现
 
-`DataValidator` 可在编辑器和运行时的任何地方调用。
+支持的字段类型：`string`、`int`、`float`、`bool`，以及各自的数组类型（`string[]` 等）。
+数组在 CSV 中以 `|` 分隔。
 
-```csharp
-ValidationReport report = DataValidator.Validate(skills, buffs);
-if (report.HasErrors)
-    Debug.LogError(report); // 输出错误/警告列表
+如果不想生成，手写 `class MonsterData : EntityData { ... }` 也能 100% 正常工作。
+
+## Data Editor — 创建/编辑数据
+
+菜单：**Tools ▸ AchReactive ▸ Data Editor**
+
+- 左侧：实例列表（用 + Instance 添加）
+- 右侧：所选实例的 `id` 与 **Reactions 构建器**
+  - **Trigger** 下拉菜单 — 已注册的触发器 + 通用通道（on_use、on_hit …）
+  - **Conditions / Effects** — `type` 是从注册表填充的下拉菜单，`params` 为 JSON
+- 顶部 **Export JSON…** — 以 `reactions` 格式的数组保存
+
+```
+Reactions
+ ┌────────────────────────────────────────┐
+ │ Trigger: [ on_use ▾ ]              [−]  │
+ │ Conditions (AND)                        │
+ │   [ alive ▾ ] [ {} ]              [−]   │
+ │   [ + Condition ]                       │
+ │ Effects                                 │
+ │   [ damage ▾ ] [ { "power": 1.8 } ] [−] │
+ │   [ + Effect ]                          │
+ └────────────────────────────────────────┘
 ```
 
-### 技能验证项目
+关键在于**不需要直接手动输入 trigger/condition/effect 类型**。
+下拉菜单只会显示注册表中实际注册的名称，因此从源头杜绝了拼写错误与未注册类型。
+保存的 JSON 可由 `JsonDataLoader` 直接读取。
 
-- id 为空 / 重复
-- cooldown・castTime 为负数
-- targeting.type 不支持
-- effects 至少1个
-- effect.type 不支持
-- `add_buff` 的 buffId 存在性检查
-- `play_vfx` 的 vfxId（提供已知集合时发出警告）
-
-### 增益验证项目
-
-- id 为空 / 重复
-- duration ≤ 0
-- maxStack < 1
-- stackPolicy・refreshPolicy 不支持
-- periodicEffect.interval ≤ 0
-- statModifier.statKey / modifierType
-
-`ValidationReport.ToString()` 返回人类可读的错误与警告摘要。
+> 创作用 UI，运行时消费用数据文件 —— 用户无需直接接触 JSON。

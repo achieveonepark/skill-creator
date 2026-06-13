@@ -1,11 +1,11 @@
 ---
-title: Getting Started
-description: From installing Skill Creator to running your first skill.
+title: Getting started
+description: From installing AchReactive to running your first reaction.
 ---
 
 ## Installation
 
-In Unity Package Manager, select **Add package from git URL** and enter the following URL.
+In the Unity Package Manager, choose **Add package from git URL** and enter the following address.
 
 ```
 https://github.com/achieveonepark/skill-creator.git
@@ -16,103 +16,96 @@ Or add it directly to `Packages/manifest.json`.
 ```json
 {
   "dependencies": {
-    "com.achieve.skill-creator": "https://github.com/achieveonepark/skill-creator.git"
+    "com.achieve.reactive": "https://github.com/achieveonepark/skill-creator.git"
   }
 }
 ```
 
-The minimum requirement is **Unity 2021.3 or later**. There are no external package dependencies.
+The requirement is **Unity 2021.3 or later**. The only dependency is `com.unity.nuget.newtonsoft-json`,
+which is installed automatically.
 
 ## 1. Implement the integration boundary
 
-Skill Creator does not force your combat system. You only need to implement two interfaces to connect.
+AchReactive does not impose a structure on your game. You only need to implement two interfaces.
 
-- `IBattleUnit` — A combat unit (character/monster)
-- `IUnitRegistry` — Unit lookup for area targeting
-
-`Stats` / `Cooldowns` / `Buffs` can use the implementations provided by Skill Creator (`StatSheet`, `CooldownStore`, `BuffContainer`) directly.
+- `IEntity` — the subject/target of a reaction (characters, monsters, etc.)
+- `IWorld` — the world boundary for spawning, range queries, etc.
 
 ```csharp
-public sealed class MyUnit : MonoBehaviour, IBattleUnit
+using AchReactive;
+using UnityEngine;
+
+public sealed class Character : MonoBehaviour, IEntity
 {
-    [SerializeField] private int _team;
-    [SerializeField] private float _maxHp = 1000f, _attack = 100f;
-    private float _hp;
-
+    public StatSheet Stats { get; } = new StatSheet();   // provided by the package, use as is
     public string Id => name;
-    public StatSheet Stats { get; private set; }
-    public CooldownStore Cooldowns { get; private set; }
-    public BuffContainer Buffs { get; private set; }
-
-    public bool IsAlive => _hp > 0f;
-    public float HpRatio => _hp / _maxHp;
-    public Vector3 Position => transform.position;
-    public Vector3 Forward => transform.forward;
+    public Vector3 Position { get => transform.position; set => transform.position = value; }
+    public bool IsAlive => Stats.GetBase(StatKeys.Hp) > 0f;
 
     void Awake()
     {
-        Stats = new StatSheet();
-        Stats.SetBase("attack", _attack);
-        Cooldowns = new CooldownStore();
-        Buffs = new BuffContainer();
-        _hp = _maxHp;
+        Stats.SetBase(StatKeys.Hp, 100f);
+        Stats.SetBase(StatKeys.HpMax, 100f);
+        Stats.SetBase(StatKeys.Atk, 10f);
+        Stats.SetBase(StatKeys.Def, 2f);
     }
-
-    public bool IsEnemyOf(IBattleUnit other) => other is MyUnit u && u._team != _team;
-    public void TakeDamage(float amount, string damageType) => _hp = Mathf.Max(0, _hp - amount);
-    public void Heal(float amount) => _hp = Mathf.Min(_maxHp, _hp + amount);
 }
 ```
 
-<Callout title="Sample included">
-Import **Samples → Basic Setup** from Package Manager to get the above implementation (`SampleBattleUnit`),
-`SampleUnitRegistry`, a bootstrap example, and sample JSON files.
-</Callout>
+## 2. Author the data
 
-## 2. Configure the system
+Define skills as JSON in the `reactions` format. (You can also build them with the [Data Editor](/usage/authoring-tools) instead of writing them by hand.)
 
-The `SkillSystem` facade wires up the database, runner, and buff controller all at once.
-
-```csharp
-var system = new SkillSystem(
-    registry: myUnitRegistry,
-    vfxPlayer: myVfxPlayer,   // optional (can be null)
-    sfxPlayer: mySfxPlayer,   // optional (can be null)
-    logger: UnityCombatLogger.Instance);
-
-system.LoadFromJson(skillsJson, buffsJson);
+```json
+[
+  {
+    "id": "fire_slash",
+    "cooldown": 5.0,
+    "reactions": [
+      {
+        "trigger": "on_use",
+        "conditions": [{ "type": "alive" }],
+        "effects": [
+          { "type": "damage", "params": { "power": 1.8 } },
+          { "type": "log", "params": { "message": "fire_slash 명중!" } }
+        ]
+      }
+    ]
+  }
+]
 ```
 
-## 3. Tick every frame
-
-Call `Tick` every frame to advance buff durations and periodic effects.
+## 3. Assemble and run
 
 ```csharp
-void Update() => system.Tick(Time.deltaTime);
+using AchReactive;
+
+var skills = new DataBase<SkillData>();
+var engine = new ReactionEngine();
+
+void Start()
+{
+    // Auto-collect the behavior pool (includes default damage/heal/…)
+    EffectRegistry.AutoRegister();
+    ConditionRegistry.AutoRegister();
+    TriggerRegistry.AutoRegister();
+
+    // Load data — any source you like
+    skills.Load(new JsonDataLoader<SkillData>(() => skillsJson.text));
+}
+
+void UseSkill(IEntity caster, IEntity target)
+{
+    var ctx = new ReactionContext { Source = caster, Target = target };
+    engine.Run("on_use", skills.Get("fire_slash"), ctx);
+}
 ```
 
-## 4. Use a skill
+Default effects like `damage`, `heal`, and `add_modifier` are provided by the package, so no extra code is required.
+You can immediately see a working scene in the **Basic** example under `Samples`.
 
-```csharp
-// Immediate execution (ignores cast time)
-SkillUseResult result = system.Use("fire_slash", caster, target);
-if (!result.Success)
-    Debug.Log(result.Status); // SkillNotFound / OnCooldown / NoTargets / ConditionFailed
+## Next steps
 
-// Use a coroutine to wait for cast time
-StartCoroutine(system.Runner.UseRoutine("fire_slash", caster, target,
-    r => Debug.Log(r.Status)));
-```
-
-## Data location
-
-The recommended storage location differs between development and production.
-
-| Phase | Location |
-| --- | --- |
-| Development | `Assets/GameData/Skills/skills.json` |
-| Included in build | `StreamingAssets/GameData/skills.json` |
-| Runtime patch | `Application.persistentDataPath/GameData/skills.json` |
-| Remote | `CDN/GameData/skills.json` |
-
-`SkillDataLoader` accepts a plain string, so it works identically regardless of where you load from.
+- [Concepts](/usage/concepts) — why the structure is this way
+- [Default behavior pool](/usage/reactions) — the list of provided effects/conditions
+- [Extending](/usage/extending) — new behaviors and new domains

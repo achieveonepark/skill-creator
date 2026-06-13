@@ -1,68 +1,52 @@
 ---
-title: Skill Creator
-description: 在Unity中通过数据组合来制作和验证技能、增益、目标选择、条件与效果的内容创作工具。
+title: AchReactive
+description: 通过数据组合构建所有游戏内容的领域无关响应式框架。
 ---
 
-**Skill Creator** 是一款内容创作工具，让你可以在Unity中以**数据（JSON）驱动**的方式创建技能和增益效果，无需硬编码。
+**AchReactive** 是一个 Unity 框架，它将技能、怪物、道具、地图、任务等所有游戏内容
+都用 **触发器 → 条件 → 效果** 的数据组合来构建。
 
-它不将技能制作成庞大的类，而是将小型功能片段以数据的形式组合。将 `ScriptableObject` 依赖降至最低，支持基于 JSON / CSV / Spreadsheet / 远程数据 的运营方式。
+## 核心理念
 
-```text
-Trigger → Targeting → Condition → Effect → Result
+> 领域是无限的，但动作（primitive）是有限的。
+
+如果为每个领域都重新构建一套系统，就必须每次都填满 `领域 × 动作` 的矩阵。
+AchReactive 让动作池被**所有领域共享**，从而将这个乘法变成了加法。
+从第二个领域开始，几乎是免费的。
+
+```
+        damage  heal  add_modifier  spawn
+Skill     ✓      ✓        ✓
+Monster                    ✓          ✓     ← 复用相同的 effect
+Item               ✓       ✓
 ```
 
-## 解决什么问题
+## 特性
 
-该工具的本质不是技能系统本身，而是**内容制作流水线**。
+- **领域无关** — 仅用一个 `DataBase<T>` 即可处理 Skill/Monster/Item/… 全部
+- **来源无关** — 可从任意位置加载 JSON、CSV、远程等（只要实现 `IDataLoader<T>` 即可接入新来源）
+- **动作自动注册** — 通过反射收集 `[Effect]`/`[Condition]`/`[Trigger]` 方法，0 行接线代码
+- **UIToolkit 创作工具** — 在编辑器中生成类型与数据（无需手写 JSON）
+- **依赖最小** — 仅 Newtonsoft.Json 一个
 
-| 好的方向 | 坏的方向 |
-| --- | --- |
-| 策划人员创建数据 | 每个技能都需要建一个类 |
-| 工具自动检测错误 | 特例技能不断增加 |
-| 运行时直接执行数据 | 数据有了但仍需修改代码 |
-| 模拟器验证数值平衡 | 没有验证，运行时崩溃 |
-| 可轻松替换为线上数据 | 只能在Unity Editor内修改 |
-
-## 概览
-
-一个技能用如下JSON表示。
-
-```json
-{
-  "id": "fire_slash",
-  "name": "炎斩",
-  "cooldown": 5.0,
-  "castTime": 0.3,
-  "targeting": { "type": "cone", "range": 5.0, "angle": 60, "maxTargets": 5 },
-  "conditions": [{ "type": "alive" }],
-  "effects": [
-    { "type": "damage", "power": 1.8, "damageType": "physical" },
-    { "type": "add_buff", "buffId": "burn", "duration": 5.0 },
-    { "type": "play_vfx", "vfxId": "fire_slash_vfx" }
-  ]
-}
-```
-
-运行时直接执行这份数据。
+## 一目了然
 
 ```csharp
-var system = new SkillSystem(unitRegistry, vfxPlayer, sfxPlayer, UnityCombatLogger.Instance);
-system.LoadFromJson(skillsJson, buffsJson);
+// 1) 自动收集动作池（包含默认的 effect/condition/trigger）
+EffectRegistry.AutoRegister();
+ConditionRegistry.AutoRegister();
+TriggerRegistry.AutoRegister();
 
-system.Use("fire_slash", caster, target);
+// 2) 加载数据（来源自由）
+var skills = new DataBase<SkillData>();
+skills.Load(new JsonDataLoader<SkillData>(() => json));
+
+// 3) 执行 —— 即使领域不同也完全一致
+engine.Run("on_use", skills.Get("fire_slash"), ctx);
 ```
-
-## 核心特性
-
-- **零外部依赖** — 仅使用Unity内置的 `JsonUtility`，无需UniTask或Newtonsoft。
-- **集成边界接口** — 只需实现 `IBattleUnit` 即可与任何战斗系统对接。
-- **验证优先** — `DataValidator` 在运行时之前拦截无效数据。
-- **编辑器工具** — 提供 Skill / Buff Editor 和 Preview Simulator。
-- **运行时可热更** — 替换JSON文件即可立即生效。
 
 ## 下一步
 
-- [快速开始](/getting-started) — 安装和运行第一个技能
-- [核心概念](/concepts) — 执行流程与设计哲学
-- [数据格式](/data-format) — 技能与增益 JSON 参考
-- [运行时](/runtime) — `SkillSystem` 与集成方式
+- [开始使用](/getting-started) — 从安装到运行第一个响应
+- [核心概念](/usage/concepts) — 触发器/条件/效果与领域模型
+- [扩展](/usage/extending) — 添加新动作、新领域

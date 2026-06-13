@@ -1,118 +1,111 @@
 ---
-title: 快速开始
-description: 从安装 Skill Creator 到运行第一个技能。
+title: 开始使用
+description: 从安装 AchReactive 到运行第一个响应。
 ---
 
 ## 安装
 
-在 Unity Package Manager 中选择 **Add package from git URL**，输入以下地址。
+在 Unity Package Manager 中选择 **Add package from git URL**，然后输入以下地址。
 
 ```
 https://github.com/achieveonepark/skill-creator.git
 ```
 
-或直接添加到 `Packages/manifest.json`。
+或者直接添加到 `Packages/manifest.json` 中。
 
 ```json
 {
   "dependencies": {
-    "com.achieve.skill-creator": "https://github.com/achieveonepark/skill-creator.git"
+    "com.achieve.reactive": "https://github.com/achieveonepark/skill-creator.git"
   }
 }
 ```
 
-最低要求是 **Unity 2021.3 或更高版本**，无外部包依赖。
+环境要求为 **Unity 2021.3 以上**。依赖只有 `com.unity.nuget.newtonsoft-json` 一个，
+并会自动一起安装。
 
 ## 1. 实现集成边界
 
-Skill Creator 不会强制要求你使用特定的战斗系统。只需实现两个接口即可接入。
+AchReactive 不会强制你采用特定的游戏结构。只需实现两个接口即可。
 
-- `IBattleUnit` — 战斗单位（角色/怪物）
-- `IUnitRegistry` — 用于范围目标选择的单位查询
-
-`Stats` / `Cooldowns` / `Buffs` 可直接使用 Skill Creator 提供的实现（`StatSheet`、`CooldownStore`、`BuffContainer`）。
+- `IEntity` — 响应的主体/目标（角色、怪物等）
+- `IWorld` — 生成/范围查询等世界边界
 
 ```csharp
-public sealed class MyUnit : MonoBehaviour, IBattleUnit
+using AchReactive;
+using UnityEngine;
+
+public sealed class Character : MonoBehaviour, IEntity
 {
-    [SerializeField] private int _team;
-    [SerializeField] private float _maxHp = 1000f, _attack = 100f;
-    private float _hp;
-
+    public StatSheet Stats { get; } = new StatSheet();   // 包提供，直接使用
     public string Id => name;
-    public StatSheet Stats { get; private set; }
-    public CooldownStore Cooldowns { get; private set; }
-    public BuffContainer Buffs { get; private set; }
-
-    public bool IsAlive => _hp > 0f;
-    public float HpRatio => _hp / _maxHp;
-    public Vector3 Position => transform.position;
-    public Vector3 Forward => transform.forward;
+    public Vector3 Position { get => transform.position; set => transform.position = value; }
+    public bool IsAlive => Stats.GetBase(StatKeys.Hp) > 0f;
 
     void Awake()
     {
-        Stats = new StatSheet();
-        Stats.SetBase("attack", _attack);
-        Cooldowns = new CooldownStore();
-        Buffs = new BuffContainer();
-        _hp = _maxHp;
+        Stats.SetBase(StatKeys.Hp, 100f);
+        Stats.SetBase(StatKeys.HpMax, 100f);
+        Stats.SetBase(StatKeys.Atk, 10f);
+        Stats.SetBase(StatKeys.Def, 2f);
     }
-
-    public bool IsEnemyOf(IBattleUnit other) => other is MyUnit u && u._team != _team;
-    public void TakeDamage(float amount, string damageType) => _hp = Mathf.Max(0, _hp - amount);
-    public void Heal(float amount) => _hp = Mathf.Min(_maxHp, _hp + amount);
 }
 ```
 
-<Callout title="提供示例">
-在 Package Manager 中导入 **Samples → Basic Setup**，可获得上述实现（`SampleBattleUnit`）、
-`SampleUnitRegistry`、启动示例以及示例 JSON 文件。
-</Callout>
+## 2. 编写数据
 
-## 2. 配置系统
+以 `reactions` 格式的 JSON 来定义技能。（也可以不直接手写，而是用 [Data Editor](/usage/authoring-tools) 来制作。）
 
-`SkillSystem` 门面类一次性连接数据库、运行器和增益控制器。
-
-```csharp
-var system = new SkillSystem(
-    registry: myUnitRegistry,
-    vfxPlayer: myVfxPlayer,   // 可选 (可为 null)
-    sfxPlayer: mySfxPlayer,   // 可选 (可为 null)
-    logger: UnityCombatLogger.Instance);
-
-system.LoadFromJson(skillsJson, buffsJson);
+```json
+[
+  {
+    "id": "fire_slash",
+    "cooldown": 5.0,
+    "reactions": [
+      {
+        "trigger": "on_use",
+        "conditions": [{ "type": "alive" }],
+        "effects": [
+          { "type": "damage", "params": { "power": 1.8 } },
+          { "type": "log", "params": { "message": "fire_slash 명중!" } }
+        ]
+      }
+    ]
+  }
+]
 ```
 
-## 3. 每帧推进
-
-每帧调用 `Tick` 以推进增益持续时间和周期效果。
+## 3. 组装与执行
 
 ```csharp
-void Update() => system.Tick(Time.deltaTime);
+using AchReactive;
+
+var skills = new DataBase<SkillData>();
+var engine = new ReactionEngine();
+
+void Start()
+{
+    // 自动收集动作池（包含默认的 damage/heal/…）
+    EffectRegistry.AutoRegister();
+    ConditionRegistry.AutoRegister();
+    TriggerRegistry.AutoRegister();
+
+    // 加载数据 —— 来源自由
+    skills.Load(new JsonDataLoader<SkillData>(() => skillsJson.text));
+}
+
+void UseSkill(IEntity caster, IEntity target)
+{
+    var ctx = new ReactionContext { Source = caster, Target = target };
+    engine.Run("on_use", skills.Get("fire_slash"), ctx);
+}
 ```
 
-## 4. 使用技能
+`damage`、`heal`、`add_modifier` 等基础 effect 由包提供，因此无需额外代码。
+可以在 `Samples` 的 **Basic** 示例中直接查看可运行的场景。
 
-```csharp
-// 立即执行（忽略施法时间）
-SkillUseResult result = system.Use("fire_slash", caster, target);
-if (!result.Success)
-    Debug.Log(result.Status); // SkillNotFound / OnCooldown / NoTargets / ConditionFailed
+## 下一步
 
-// 等待施法时间请使用协程
-StartCoroutine(system.Runner.UseRoutine("fire_slash", caster, target,
-    r => Debug.Log(r.Status)));
-```
-
-## 数据存储位置
-
-开发阶段和运营阶段推荐的存储位置不同。
-
-| 阶段 | 位置 |
-| --- | --- |
-| 开发中 | `Assets/GameData/Skills/skills.json` |
-| 打包进构建 | `StreamingAssets/GameData/skills.json` |
-| 运行时热更 | `Application.persistentDataPath/GameData/skills.json` |
-| 远程 | `CDN/GameData/skills.json` |
-
-`SkillDataLoader` 只接收字符串，因此无论从哪里读取，行为完全一致。
+- [核心概念](/usage/concepts) — 为什么是这样的结构
+- [基础动作池](/usage/reactions) — 提供的 effect/condition 列表
+- [扩展](/usage/extending) — 新动作与新领域

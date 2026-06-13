@@ -1,127 +1,85 @@
 ---
-title: Runtime
-description: The SkillSystem facade and combat system integration.
+title: Reactions and default behaviors
+description: The ReactionEngine execution flow and the provided effects, conditions, and triggers.
 ---
 
-## SkillSystem facade
-
-`SkillSystem` is the entry point that wires together the database, runner, target resolver, condition evaluator, effect executor, and buff controller all at once.
+## Execution flow
 
 ```csharp
-var system = new SkillSystem(registry, vfxPlayer, sfxPlayer, logger);
-system.LoadFromJson(skillsJson, buffsJson);
-
-void Update() => system.Tick(Time.deltaTime);
-
-system.Use("fire_slash", caster, target);
+var engine = new ReactionEngine();
+engine.Run("on_use", skillData, ctx);
 ```
 
-Internal components are accessible directly as properties.
+`Run(trigger, data, ctx)` iterates over `data.reactions` and processes each reaction as follows.
 
-| Property | Type |
-| --- | --- |
-| `Database` | `SkillDatabase` |
-| `Runner` | `SkillRunner` |
-| `Buffs` | `BuffController` |
-| `Targeting` | `TargetResolver` |
-| `Conditions` | `ConditionEvaluator` |
-| `Effects` | `EffectExecutor` |
-
-## Skill execution
-
-### Immediate execution
-
-```csharp
-SkillUseResult result = system.Use("fire_slash", caster, target);
+```
+1. Does the trigger channel name match?      (otherwise skip)
+2. Does the trigger guard pass?              (TriggerRegistry, passes if none)
+3. Do all conditions (AND) pass?             (ConditionRegistry)
+4. Execute effects in order                  (EffectRegistry)
 ```
 
-Use `SkillUseResult.Status` to find the failure reason.
+The return value is the number of reactions actually executed.
 
-| Status | Meaning |
-| --- | --- |
-| `Success` | Executed normally |
-| `SkillNotFound` | No definition found |
-| `OnCooldown` | Still on cooldown |
-| `NoTargets` | No targets found |
-| `ConditionFailed` | Condition check failed |
-
-### Cast time handling
-
-`Use` ignores cast time. To wait for casting, use the coroutine `UseRoutine`.
+## ReactionContext
 
 ```csharp
-StartCoroutine(system.Runner.UseRoutine("fire_slash", caster, target,
-    onComplete: r => Debug.Log(r.Status)));
-```
-
-It is provided as a standard `IEnumerator` coroutine to avoid depending on external async libraries like UniTask.
-
-## IBattleUnit integration
-
-Combat units implement `IBattleUnit`. `Stats` / `Cooldowns` / `Buffs` use the implementations provided by Skill Creator directly.
-
-```csharp
-public interface IBattleUnit
+var ctx = new ReactionContext
 {
-    string Id { get; }
-    bool IsAlive { get; }
-    float HpRatio { get; }
-    Vector3 Position { get; }
-    Vector3 Forward { get; }
-
-    StatSheet Stats { get; }
-    CooldownStore Cooldowns { get; }
-    BuffContainer Buffs { get; }
-
-    bool IsEnemyOf(IBattleUnit other);
-    void TakeDamage(float amount, string damageType);
-    void Heal(float amount);
-}
+    Source  = caster,     // subject
+    Target  = target,     // single target
+    Targets = targets,    // area targets (takes priority if present)
+    World   = world,      // spawn/query boundary
+};
 ```
 
-Apply project-specific damage reduction logic (defense, resistance, etc.) inside `TakeDamage`. Skill Creator only computes `value + attack × power` and delegates the final application to the unit.
+An effect reads its own arguments from `ctx.Params`. The engine injects them per item.
 
-## IUnitRegistry integration
+## Default effects
 
-`circle` / `cone` targeting requires querying nearby units. Implement `IUnitRegistry` to connect.
+| type | Description | params |
+|---|---|---|
+| `damage` | reduces hp by `atk*power + flat - def` | `power`, `flat` |
+| `heal` | heals `atk*power + flat` (capped at hp_max) | `power`, `flat` |
+| `set_stat` | set a stat base value | `stat`, `value` |
+| `add_stat` | increase/decrease a stat base value | `stat`, `delta` |
+| `add_modifier` | add a stat modifier (basic buff form) | `stat`, `modifier`, `value`, `source` |
+| `remove_modifier` | remove modifiers for a source token | `source` |
+| `spawn` | spawn an entity via World | `entityId` |
+| `log` | debug log | `message` |
 
-```csharp
-public sealed class MyRegistry : IUnitRegistry
-{
-    private readonly List<IBattleUnit> _units = new();
-    public IReadOnlyList<IBattleUnit> AllUnits => _units;
+The `modifier` value is one of `flat` / `percent_add` / `percent_mul`. The targets are all of `Targets` if present,
+otherwise `Target`.
 
-    public void Collect(Vector3 center, float radius, List<IBattleUnit> buffer)
-    {
-        float sqr = radius * radius;
-        foreach (var u in _units)
-            if ((u.Position - center).sqrMagnitude <= sqr)
-                buffer.Add(u);
-    }
-}
-```
+## Default conditions
 
-You can also implement it with `Physics.OverlapSphere` or by iterating your own unit list. Skill Creator filters to **alive enemies** from the candidates returned and uses up to `maxTargets`.
+| type | Description | params |
+|---|---|---|
+| `always` | always true | — |
+| `alive` / `dead` | target alive/dead | — |
+| `chance` | pass by probability | `value` (0~1) |
+| `hp_below` / `hp_above` | compare HP ratio | `value` (0~1) |
+| `stat_above` / `stat_below` | compare a stat value | `stat`, `value` |
 
-## Cooldowns
+Unless otherwise specified, conditions evaluate `Target` (or `Source` if absent).
 
-`CooldownStore` is absolute-time based and requires no per-frame updates. The default time provider is `Time.time`, but you can inject a custom provider for testing or pausing.
+## Default trigger guard
 
-```csharp
-var cooldowns = new CooldownStore(() => myGameClock.Now);
-```
+Most triggers (`on_use`, `on_hit`, `on_equip`, etc.) fire on the channel name alone, so they have no guard.
+Only triggers that need a threshold comparison have a guard.
 
-## Data loading / patching
+| type | Description | triggerParams |
+|---|---|---|
+| `on_hp_below` | fires only when Source's HP ratio is at or below threshold | `threshold` (0~1) |
 
-```csharp
-// Load from JSON string
-system.LoadFromJson(skillsJson, buffsJson);
+## Stat conventions
 
-// Load directly from code
-system.Database.LoadSkills(listOfSkillDefinitions);
+The default effects/conditions use the following keys (`StatKeys`). To use a different scheme, register the effect
+directly to override it.
 
-// Merge a subset (runtime patch)
-system.Database.AddSkills(patchedSkills);
-```
-
-`LoadSkills` fully replaces; `AddSkills` merges by overwriting entries with the same id. This is suitable for hot-patching by receiving remote JSON and calling `AddSkills`.
+| Key | Meaning |
+|---|---|
+| `hp` | current health (resource) |
+| `hp_max` | maximum health (denominator for ratio conditions) |
+| `atk` | attack power (modifiers applied) |
+| `def` | defense (modifiers applied) |

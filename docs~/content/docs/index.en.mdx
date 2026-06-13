@@ -1,68 +1,52 @@
 ---
-title: Skill Creator
-description: A content authoring tool for crafting and validating skills, buffs, targeting, conditions, and effects through data composition in Unity.
+title: AchReactive
+description: A domain-agnostic reaction framework that builds all game content from data composition.
 ---
 
-**Skill Creator** is a content authoring tool that lets you create skills and buffs in Unity using a **data (JSON) driven** approach — no code hardcoding required.
+**AchReactive** is a Unity framework that builds all game content — skills, monsters, items, maps, quests, and more —
+from data composition following the **trigger → condition → effect** pattern.
 
-Instead of building each skill as a monolithic class, you compose small functional pieces as data. It minimizes `ScriptableObject` dependencies and operates on JSON / CSV / Spreadsheet / Remote Data sources.
+## Core idea
 
-```text
-Trigger → Targeting → Condition → Effect → Result
+> Domains are infinite, but behaviors (primitives) are finite.
+
+Building a new system for every domain means filling in the `domain × behavior` matrix each time.
+AchReactive makes the behavior pool **shared by all domains**, turning this multiplication into addition.
+From the second domain onward, it's almost free.
+
+```
+        damage  heal  add_modifier  spawn
+Skill     ✓      ✓        ✓
+Monster                    ✓          ✓     ← reuse the same effect
+Item               ✓       ✓
 ```
 
-## What problem does it solve
+## Features
 
-The essence of this tool is not the skill system itself, but a **content production pipeline**.
-
-| Good direction | Bad direction |
-| --- | --- |
-| Designers create data | A new class per skill |
-| The tool catches errors | Special-case skills keep growing |
-| The runtime executes data as-is | Data exists but code changes are still required |
-| The simulator validates balance | Crashes at runtime without validation |
-| Easy to swap with live data | Only editable inside the Unity Editor |
+- **Domain-agnostic** — a single `DataBase<T>` handles Skill/Monster/Item/… all of them
+- **Source-agnostic** — load from anywhere: JSON, CSV, remote, etc. (implement `IDataLoader<T>` for a new source)
+- **Automatic behavior registration** — collects `[Effect]`/`[Condition]`/`[Trigger]` methods via reflection, zero wiring
+- **UIToolkit authoring tools** — create types and data in the editor (no hand-written JSON)
+- **Minimal dependencies** — just Newtonsoft.Json
 
 ## At a glance
 
-A single skill is expressed with JSON like this.
-
-```json
-{
-  "id": "fire_slash",
-  "name": "Fire Slash",
-  "cooldown": 5.0,
-  "castTime": 0.3,
-  "targeting": { "type": "cone", "range": 5.0, "angle": 60, "maxTargets": 5 },
-  "conditions": [{ "type": "alive" }],
-  "effects": [
-    { "type": "damage", "power": 1.8, "damageType": "physical" },
-    { "type": "add_buff", "buffId": "burn", "duration": 5.0 },
-    { "type": "play_vfx", "vfxId": "fire_slash_vfx" }
-  ]
-}
-```
-
-The runtime executes this data directly.
-
 ```csharp
-var system = new SkillSystem(unitRegistry, vfxPlayer, sfxPlayer, UnityCombatLogger.Instance);
-system.LoadFromJson(skillsJson, buffsJson);
+// 1) Auto-collect the behavior pool (includes default effects/conditions/triggers)
+EffectRegistry.AutoRegister();
+ConditionRegistry.AutoRegister();
+TriggerRegistry.AutoRegister();
 
-system.Use("fire_slash", caster, target);
+// 2) Load data (any source)
+var skills = new DataBase<SkillData>();
+skills.Load(new JsonDataLoader<SkillData>(() => json));
+
+// 3) Run — identical even across domains
+engine.Run("on_use", skills.Get("fire_slash"), ctx);
 ```
-
-## Key features
-
-- **Zero external dependencies** — Uses only Unity's built-in `JsonUtility`. No UniTask or Newtonsoft required.
-- **Integration boundary interfaces** — Implement just `IBattleUnit` to connect with any combat system.
-- **Validation first** — `DataValidator` catches invalid data before it reaches the runtime.
-- **Editor tools** — Skill / Buff Editor and Preview Simulator included.
-- **Runtime patchable** — Swap the JSON and balance changes take effect immediately.
 
 ## Next steps
 
-- [Getting Started](/getting-started) — Installation and running your first skill
-- [Core Concepts](/concepts) — Execution flow and design philosophy
-- [Data Format](/data-format) — Skill and buff JSON reference
-- [Runtime](/runtime) — `SkillSystem` and integration
+- [Getting started](/getting-started) — from installation to running your first reaction
+- [Concepts](/usage/concepts) — triggers/conditions/effects and the domain model
+- [Extending](/usage/extending) — adding new behaviors and new domains

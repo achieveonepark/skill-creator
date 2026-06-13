@@ -1,81 +1,77 @@
 ---
-title: Core Concepts
-description: Execution flow and design philosophy — why data-driven.
+title: Core concepts
+description: Triggers, conditions, effects, and the domain-agnostic data model.
 ---
 
-## Execution flow
+## Multiplication into addition
 
-Every skill follows the same pipeline.
+Building a dedicated system for each domain (SkillSystem, MonsterSystem, …) means
+filling in the `domain × behavior` matrix every time. AchReactive makes the **behavior pool
+shared by all domains**, turning this into `domain + behavior`.
 
-```text
-Trigger → Targeting → Condition → Effect → Result
+- Adding a new domain → 1 data class (0 system code)
+- Reusing an existing behavior → 0 code, data only
+- A genuinely new behavior → 1 function, then shared by all domains
+
+## The four layers
+
+```
+Data Layer       IData · IDataLoader<T> · DataBase<T>      (generic, provided by the package)
+Reaction Layer   Reaction · ReactionEngine · Registry      (generic, provided by the package)
+Behavior Pool    [Effect("damage")] [Condition("alive")]   (written by the game, domain-agnostic)
+Domain Data      SkillData · MonsterData · ItemData         (data, code-gen capable)
 ```
 
-| Step | Responsible | Description |
-| --- | --- | --- |
-| Trigger | `SkillRunner` | Skill use request. Checks cooldown. |
-| Targeting | `TargetResolver` | Computes the actual target list from the targeting definition. |
-| Condition | `ConditionEvaluator` | Evaluates conditions with AND logic before executing effects. |
-| Effect | `EffectExecutor` | Executes the effect list sequentially. |
-| Result | — | Applies damage/heal/buffs, starts cooldown, records log. |
+The top two layers are provided by the package and don't change. You only fill in the bottom two layers.
 
-The actual order inside `SkillRunner.Use` is:
+## Reaction = trigger → condition → effect
 
-```text
-1. Look up SkillDefinition
-2. Check cooldown
-3. Compute target list
-4. Evaluate conditions
-5. (Wait for cast time — UseRoutine only)
-6. Execute effects sequentially
-7. Apply cooldown
-8. Record execution log
+Every domain is expressed in the same language.
+
+```
+Reaction
+ ├─ trigger      "on_use" | "on_hit" | "on_hp_below" ...
+ ├─ conditions   evaluated with AND (alive, hp_below, chance ...)
+ └─ effects      executed in order (damage, heal, add_modifier ...)
 ```
 
-## Composition of small pieces
+The shape is identical even across different domains.
 
-A skill is not a monolithic class but a composition of data pieces.
+```json
+// Skill — damage on use
+{ "trigger": "on_use",
+  "effects": [{ "type": "damage", "params": { "power": 1.8 } }] }
 
-```text
-Skill
- ├─ Targeting   (what to hit)
- ├─ Condition[] (whether to execute)
- └─ Effect[]    (what to do)
+// Monster — enrage when HP is at or below 30%
+{ "trigger": "on_hp_below", "triggerParams": { "threshold": 0.3 },
+  "effects": [{ "type": "add_modifier", "params": { "stat": "atk", "modifier": "percent_add", "value": 0.5 } }] }
+
+// Item — aura on equip
+{ "trigger": "on_equip",
+  "effects": [{ "type": "add_modifier", "params": { "stat": "def", "modifier": "flat", "value": 5 } }] }
 ```
 
-New skills are created with **data, not code**. Combining the same `damage` / `add_buff` / `play_vfx` pieces differently produces entirely different skills.
-
-## Why minimize ScriptableObject
-
-`ScriptableObject` is convenient inside the Unity Editor, but has limitations as a content production tool.
-
-- Awkward to integrate with external tools (Spreadsheet/server)
-- Runtime patching is cumbersome
-- Diffing large amounts of data is inconvenient
-- Designers must open the Unity Editor
-- Applying balance changes during live operations is heavy
-
-Therefore Skill Creator uses **JSON as the primary storage format** and prioritizes the following operation flow.
-
-```text
-JSON → CSV → Google Spreadsheet Export → Remote Config → CDN → Addressables TextAsset
-```
+`add_modifier` is **one and the same code** whether a skill or an item uses it.
 
 ## Integration boundary
 
-Skill Creator does not impose a specific combat system. The following interfaces form the boundary.
+The game only implements two interfaces.
 
-| Interface | Role | Required |
-| --- | --- | --- |
-| `IBattleUnit` | Combat unit abstraction | ✅ |
-| `IUnitRegistry` | Unit lookup for area targeting | When using circle/cone |
-| `IVfxPlayer` / `ISfxPlayer` | Presentation playback | Optional |
-| `ICombatLogger` | Execution logging | Optional |
+- **`IEntity`** — `Id`, `Position`, `Stats` (StatSheet), `IsAlive`
+- **`IWorld`** — `Spawn`, `Collect`
 
-`StatSheet`, `CooldownStore`, and `BuffContainer` held by units are provided by Skill Creator, so you do not need to implement them yourself.
+Effects/conditions access `Source`/`Target`/`Targets`/`World` through the `ReactionContext`.
 
-## MVP scope
+## We don't use typeof
 
-There is no node graph or full expression parser from the start. The MVP covers **creating, validating, and executing data at runtime**.
+When grouping multiple domains, we don't use a type-keyed service locator like `Dictionary<Type, object>`.
+Each `DataBase<T>` is **held explicitly**, and effects that need cross-domain references are
+solved with [manual registration + closure capture](/usage/extending#크로스-도메인).
 
-See the [Data Format](/data-format) documentation for supported types.
+```csharp
+public sealed class GameDataContext
+{
+    public readonly DataBase<SkillData>   Skills   = new();
+    public readonly DataBase<MonsterData> Monsters = new();
+}
+```

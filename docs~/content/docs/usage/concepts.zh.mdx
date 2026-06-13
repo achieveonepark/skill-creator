@@ -1,81 +1,77 @@
 ---
 title: 核心概念
-description: 执行流程与设计哲学 — 为何选择数据驱动。
+description: 触发器·条件·效果与领域无关的数据模型。
 ---
 
-## 执行流程
+## 把乘法变成加法
 
-每个技能都遵循相同的流水线。
+如果为每个领域都构建专用系统（SkillSystem、MonsterSystem、…），
+就必须每次都填满 `领域 × 动作` 的矩阵。AchReactive 让**动作池被所有领域
+共享**，从而把它变成 `领域 + 动作`。
 
-```text
-Trigger → Targeting → Condition → Effect → Result
+- 添加新领域 → 一个数据类（0 行系统代码）
+- 复用已有动作 → 0 代码，只需数据
+- 真正的新动作 → 一个函数，之后所有领域共享
+
+## 四个层
+
+```
+Data Layer       IData · IDataLoader<T> · DataBase<T>      (泛型，包提供)
+Reaction Layer   Reaction · ReactionEngine · Registry      (泛型，包提供)
+Behavior Pool    [Effect("damage")] [Condition("alive")]   (游戏编写，领域无关)
+Domain Data      SkillData · MonsterData · ItemData         (数据，可代码生成)
 ```
 
-| 阶段 | 负责方 | 说明 |
-| --- | --- | --- |
-| Trigger | `SkillRunner` | 技能使用请求，检查冷却时间。 |
-| Targeting | `TargetResolver` | 根据目标定义计算实际目标列表。 |
-| Condition | `ConditionEvaluator` | 执行效果前以 AND 逻辑检查条件。 |
-| Effect | `EffectExecutor` | 按顺序执行效果列表。 |
-| Result | — | 应用伤害/治疗/增益，启动冷却，记录日志。 |
+上面两层由包提供且不会改变。你只需填充下面两层即可。
 
-`SkillRunner.Use` 的实际顺序如下。
+## 响应 = 触发器 → 条件 → 效果
 
-```text
-1. 查找 SkillDefinition
-2. 检查冷却时间
-3. 计算目标列表
-4. 检查条件
-5. (等待施法时间 — 仅 UseRoutine)
-6. 顺序执行效果列表
-7. 应用冷却时间
-8. 记录执行日志
+所有领域都用同一种语言表达。
+
+```
+Reaction
+ ├─ trigger      "on_use" | "on_hit" | "on_hp_below" ...
+ ├─ conditions   以 AND 评估 (alive, hp_below, chance ...)
+ └─ effects      按顺序执行 (damage, heal, add_modifier ...)
 ```
 
-## 小模块的组合
+即便领域不同，形态也完全一致。
 
-技能不是庞大的类，而是数据模块的组合。
+```json
+// 技能 — 使用时造成伤害
+{ "trigger": "on_use",
+  "effects": [{ "type": "damage", "params": { "power": 1.8 } }] }
 
-```text
-Skill
- ├─ Targeting   (打击什么)
- ├─ Condition[] (是否可以执行)
- └─ Effect[]    (做什么)
+// 怪物 — HP 30% 以下时狂暴化
+{ "trigger": "on_hp_below", "triggerParams": { "threshold": 0.3 },
+  "effects": [{ "type": "add_modifier", "params": { "stat": "atk", "modifier": "percent_add", "value": 0.5 } }] }
+
+// 道具 — 装备时产生光环
+{ "trigger": "on_equip",
+  "effects": [{ "type": "add_modifier", "params": { "stat": "def", "modifier": "flat", "value": 5 } }] }
 ```
 
-新技能通过**数据而非代码**创建。将相同的 `damage` / `add_buff` / `play_vfx` 模块以不同方式组合，即可产生完全不同的技能。
-
-## 为何最小化 ScriptableObject
-
-`ScriptableObject` 在 Unity Editor 中很方便，但作为内容量产工具有其局限性。
-
-- 与外部工具（Spreadsheet/服务器）集成不便
-- 运行时热更新繁琐
-- 大量数据的差异比对不便
-- 策划人员必须打开 Unity Editor
-- 运营期间反映数值调整的流程繁重
-
-因此 Skill Creator 以 **JSON 作为首要存储格式**，并优先支持以下运营流程。
-
-```text
-JSON → CSV → Google Spreadsheet Export → Remote Config → CDN → Addressables TextAsset
-```
+无论是技能使用还是道具使用，`add_modifier` 都是**同一份代码**。
 
 ## 集成边界
 
-Skill Creator 不强制使用特定的战斗系统。以下接口构成边界。
+游戏只需实现两个接口。
 
-| 接口 | 角色 | 必须 |
-| --- | --- | --- |
-| `IBattleUnit` | 战斗单位抽象 | ✅ |
-| `IUnitRegistry` | 范围目标的单位查询 | 使用 circle/cone 时 |
-| `IVfxPlayer` / `ISfxPlayer` | 演出播放 | 可选 |
-| `ICombatLogger` | 执行日志 | 可选 |
+- **`IEntity`** — `Id`、`Position`、`Stats`（StatSheet）、`IsAlive`
+- **`IWorld`** — `Spawn`、`Collect`
 
-单位持有的 `StatSheet`、`CooldownStore`、`BuffContainer` 由 Skill Creator 提供，无需自行实现。
+effect/condition 通过 `ReactionContext` 访问 `Source`/`Target`/`Targets`/`World`。
 
-## MVP 范围
+## 不使用 typeof
 
-从一开始不构建节点图或完整的表达式解析器。MVP 覆盖**创建数据、验证数据、在运行时执行数据**。
+在组合多个领域时，不使用 `Dictionary<Type, object>` 这类以类型为键的服务定位器。
+而是**显式持有**每个 `DataBase<T>`，需要跨领域引用的 effect 则通过
+[手动注册 + 闭包捕获](/usage/extending#크로스-도메인)来解决。
 
-支持的类型请参阅 [数据格式](/data-format) 文档。
+```csharp
+public sealed class GameDataContext
+{
+    public readonly DataBase<SkillData>   Skills   = new();
+    public readonly DataBase<MonsterData> Monsters = new();
+}
+```

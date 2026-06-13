@@ -1,29 +1,30 @@
 ---
 title: Changelog
-description: Skill Creator release notes.
+description: AchReactive release notes.
 ---
 
-## 0.1.0 — 2026-06-12
+## 0.1.0
 
-First release. MVP of the data-driven skill/buff system.
+First public release. Transitioned from the skill-only tool (Skill Creator) to the **domain-agnostic reaction framework AchReactive**.
 
 ### Added
 
-- **Data definitions** — `SkillDefinition`, `BuffDefinition`, `TargetingDefinition`, `ConditionDefinition`, `EffectDefinition`, `StatModifierDefinition` (JSON-serializable)
-- **Runtime** — `SkillSystem` facade, `SkillRunner`, `TargetResolver`, `ConditionEvaluator`, `EffectExecutor`, `BuffController`, `SkillDatabase`, `SkillDataLoader`
-- **Integration boundaries** — `IBattleUnit`, `IUnitRegistry`, `IVfxPlayer`, `ISfxPlayer`, `ICombatLogger`
-- **Support implementations** — `StatSheet`, `CooldownStore`, `BuffContainer`, `BuffInstance`
-- **Validation** — `DataValidator`, `ValidationReport`
-- **Editor tools** — Skill Editor, Buff Editor, Preview Simulator, JSON Exporter
-- **Sample** — Basic Setup (example unit/registry/bootstrap, skills.json, buffs.json)
+- **Data Layer** — `IData`, `IDataLoader<T>`, `DataBase<T>` (no use of typeof)
+- **Loader** — `JsonDataLoader<T>` (Newtonsoft), `CsvDataLoader<T>` + `ICsvMapper<T>`
+- **Reaction Layer** — `Reaction`, `EntityData`, `ParamBag`, `ReactionContext`, `ReactionEngine`
+- **Registry** — `Effect/Condition/TriggerRegistry` (attribute auto-collection + manual registration)
+- **Default behavior pool** — 8 effects, 8 conditions, 1 trigger guard
+- **Integration boundary** — `IEntity`, `IWorld`, `StatSheet`, `CooldownStore`
+- **UIToolkit authoring tools** — Type Designer (code generation), Data Editor (data generation)
+- **Basic sample** — example with two domains: skills + monsters
 
-### Supported types
+### Changed
 
-| Category | Values |
-| --- | --- |
-| Targeting | `self`, `single_enemy`, `circle`, `cone` |
-| Condition | `always`, `alive`, `chance`, `hp_below`, `hp_above`, `has_buff`, `not_has_buff`, `target_count_above`, `target_count_below` |
-| Effect | `damage`, `heal`, `add_buff`, `remove_buff`, `play_vfx`, `play_sfx` |
-| StackPolicy | `stack`, `ignore`, `replace` |
-| RefreshPolicy | `refresh_duration`, `keep` |
-| StatModifier | `flat`, `percent_add`, `percent_mul` |
+- Package name `com.achieve.skill-creator` → `com.achieve.reactive`
+- Namespace → `AchReactive`
+- `JsonUtility` → `Newtonsoft.Json` (wrapper classes removed)
+
+### Removed
+
+- Skill-only legacy (`SkillSystem`/`SkillRunner`/`EffectExecutor`, etc.)
+- The buff duration/stack system is temporarily on hold because it requires a redesign of runtime state (planned for a follow-up)

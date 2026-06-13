@@ -1,0 +1,90 @@
+---
+title: Extending
+description: New behaviors, new domains, and cross-domain connections.
+---
+
+## Adding a new behavior
+
+### Path A — Attribute (recommended)
+
+Write a static method annotated with `[Effect]`/`[Condition]`/`[Trigger]`, and `AutoRegister()`
+collects it automatically from all assemblies. There is no wiring code.
+
+```csharp
+using AchReactive;
+
+public static class MyEffects
+{
+    [Effect("teleport")]
+    public static void Teleport(ReactionContext c) =>
+        c.Source.Position = c.World != null ? /* ... */ c.Source.Position;
+}
+```
+
+The signatures are fixed.
+
+```csharp
+[Effect("name")]    static void M(ReactionContext ctx)
+[Condition("name")] static bool M(ReactionContext ctx)
+[Trigger("name")]   static bool M(ReactionContext ctx, ParamBag triggerParams)
+```
+
+### Path B — Manual registration
+
+Use this when you need DI, runtime state, or closures.
+
+```csharp
+EffectRegistry.Register("teleport", c => myTeleporter.Move(c.Source));
+```
+
+## Adding a new domain
+
+A new domain needs only **1 data class**. There is no system code.
+
+```csharp
+[Serializable]
+public class MonsterData : EntityData   // inherits id / stats / reactions
+{
+    public int expReward;               // domain-specific field
+}
+```
+
+```csharp
+var monsters = new DataBase<MonsterData>();
+monsters.Load(new JsonDataLoader<MonsterData>(() => json));
+
+engine.Run("on_hp_below", monsters.Get("goblin_boss"), ctx);
+```
+
+`damage`/`add_modifier`, etc., reuse what skills already registered, as is → 0 lines of code.
+Data classes and CSV mappers can be generated with the [Type Designer](/usage/authoring-tools).
+
+## Cross-domain
+
+When an effect needs to reference another domain's data, use **manual registration + closure capture**
+instead of auto-registration to capture the relevant `DataBase<T>`. No type keys (typeof) are used.
+
+```csharp
+var items = new DataBase<ItemData>();
+
+EffectRegistry.Register("drop_item", c =>
+{
+    var item = items.Get(c.Params.Get<string>("itemId")); // capture items via closure
+    c.World.Spawn(item.id, c.Source.Position);
+});
+```
+
+> Recommendation: auto-register only pure behaviors that know nothing about domains; manually register only effects that need domain coupling.
+
+## AOT (IL2CPP) caveat
+
+`AutoRegister()` is reflection-based, so methods may be stripped in IL2CPP builds.
+Preserve the assembly containing your behavior methods with `link.xml`.
+
+```xml
+<linker>
+  <assembly fullname="YourGameAssembly" preserve="all" />
+</linker>
+```
+
+If you want to avoid reflection, you may use only **Path B (manual registration)**.

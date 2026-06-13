@@ -1,141 +1,95 @@
 ---
-title: データフォーマット
-description: スキル・バフ JSON スキーマと対応タイプリファレンス。
+title: データとソース
+description: IData、DataBase、そして JSON・CSV・カスタムローダー。
 ---
 
-スキルとバフはそれぞれ `skills.json`、`buffs.json` に定義します。ルートはオブジェクトラッパー（`{ "skills": [...] }`）とトップレベル配列（`[...]`）の両方をサポートします。
+## IData と DataBase
 
-## SkillDefinition
+すべてのドメインデータは `IData`（= `string Id`）を実装します。`DataBase<T>` は `id → 정의` の
+インメモリインデックスで、**すべてのドメインがこの一つのクラスをジェネリックで共有**します。
+
+```csharp
+var skills = new DataBase<SkillData>();
+skills.Load(loader);              // 전체 교체
+skills.Add(loader);               // 병합
+SkillData s = skills.Get("fire_slash");
+bool has   = skills.Has("fire_slash");
+```
+
+## ソース非依存 — IDataLoader&lt;T&gt;
+
+データをどこから読むにしても、`IDataLoader<T>` という同一の境界を通します。パッケージは2つの実装を提供します。
+
+### JSON
+
+Newtonsoft.Json ベースのため、最上位の配列をそのまま読み込みます。（ラッパークラス不要）
+
+```csharp
+// 문자열 직접
+skills.Load(new JsonDataLoader<SkillData>(json));
+
+// 읽기 지연 (파일/StreamingAssets/네트워크)
+skills.Load(new JsonDataLoader<SkillData>(
+    () => File.ReadAllText(path)));
+```
+
+```json
+[
+  { "id": "fire_slash", "cooldown": 5.0, "reactions": [ /* ... */ ] }
+]
+```
+
+### CSV
+
+先頭行をヘッダーとして使用し、各行を `ICsvMapper<T>` で変換します。引用符/カンマ/改行をサポートします。
+
+```csharp
+skills.Load(new CsvDataLoader<SkillData>(
+    () => File.ReadAllText(path), new SkillCsvMapper()));
+```
+
+`ICsvMapper<T>` の実装体は通常 [Type Designer](/usage/authoring-tools) が生成します。
+
+### カスタムソース
+
+バイナリ、ScriptableObject、社内フォーマットなどは `IDataLoader<T>` を実装するだけで済みます。
+
+```csharp
+public sealed class MyBinaryLoader<T> : IDataLoader<T> where T : IData
+{
+    public IReadOnlyList<T> Load() { /* 직접 디코딩 */ }
+}
+```
+
+> エディタでは JSON、実際の運用では CSV/Remote のように、**ソースだけを差し替えれば**済みます。
+
+## データ形式 (reactions)
+
+ドメインデータは `EntityData` を継承します。共通フィールドは `id`、`stats`、`reactions` です。
+
+```csharp
+[Serializable]
+public class SkillData : EntityData   // id / stats / reactions 상속
+{
+    public float cooldown;
+    public float castTime;
+}
+```
 
 ```json
 {
   "id": "fire_slash",
-  "name": "炎の斬撃",
   "cooldown": 5.0,
-  "castTime": 0.3,
-  "targeting": { "type": "cone", "range": 5.0, "angle": 60, "maxTargets": 5 },
-  "conditions": [{ "type": "alive" }],
-  "effects": [
-    { "type": "damage", "power": 1.8, "damageType": "physical" },
-    { "type": "add_buff", "buffId": "burn", "duration": 5.0 },
-    { "type": "play_vfx", "vfxId": "fire_slash_vfx" }
+  "stats": { "manaCost": 20 },
+  "reactions": [
+    {
+      "trigger": "on_use",
+      "conditions": [{ "type": "alive" }],
+      "effects": [{ "type": "damage", "params": { "power": 1.8 } }]
+    }
   ]
 }
 ```
 
-| フィールド | 型 | 説明 |
-| --- | --- | --- |
-| `id` | string | 一意の識別子（必須、重複不可） |
-| `name` | string | 表示名 |
-| `cooldown` | float | クールダウン（秒）。負数不可 |
-| `castTime` | float | 詠唱時間（秒）。負数不可 |
-| `targeting` | object | ターゲティング定義 |
-| `conditions` | array | 実行条件リスト（AND） |
-| `effects` | array | エフェクトリスト（1個以上必須） |
-
-## Targeting
-
-```json
-{ "type": "cone", "range": 5.0, "radius": 0, "angle": 60, "maxTargets": 5 }
-```
-
-| フィールド | 説明 |
-| --- | --- |
-| `type` | ターゲティング方式（下表参照） |
-| `range` | cone の射程 |
-| `radius` | circle の半径 |
-| `angle` | cone の扇形角度（度） |
-| `maxTargets` | 最大ターゲット数。0以下で制限なし |
-
-| `type` | 動作 |
-| --- | --- |
-| `self` | 詠唱者自身 |
-| `single_enemy` | 入力ターゲット1体 |
-| `circle` | 半径内の敵（レジストリ必要） |
-| `cone` | 射程・角度内の敵（レジストリ必要） |
-
-## Condition
-
-条件はエフェクト実行前に検査され、1つでも失敗するとスキルが実行されません。
-
-```json
-{ "type": "chance", "value": 0.3 }
-{ "type": "hp_below", "value": 0.5 }
-{ "type": "has_buff", "key": "burn" }
-```
-
-| `type` | 使用フィールド | 意味 |
-| --- | --- | --- |
-| `always` | — | 常に通過 |
-| `alive` | — | 生存ターゲットが存在すれば通過 |
-| `chance` | `value` | 確率（0〜1） |
-| `hp_below` | `value` | HPレシオ ≤ value のターゲットが存在 |
-| `hp_above` | `value` | HPレシオ ≥ value のターゲットが存在 |
-| `has_buff` | `key` | 該当バフを持つターゲットが存在 |
-| `not_has_buff` | `key` | 全ターゲットが該当バフを持たない |
-| `target_count_above` | `value` | ターゲット数 ≥ value |
-| `target_count_below` | `value` | ターゲット数 ≤ value |
-
-## Effect
-
-```json
-{ "type": "damage", "power": 1.8, "value": 0, "damageType": "physical" }
-{ "type": "heal", "power": 2.0 }
-{ "type": "add_buff", "buffId": "burn", "duration": 5.0 }
-{ "type": "play_vfx", "vfxId": "fire_slash_vfx" }
-```
-
-| `type` | 使用フィールド | 意味 |
-| --- | --- | --- |
-| `damage` | `power`, `value`, `damageType` | ダメージ = `value + 攻撃力 × power` |
-| `heal` | `power`, `value` | 回復量 = `value + 攻撃力 × power` |
-| `add_buff` | `buffId`, `duration` | バフ付与（`duration` が0の場合はバフのデフォルト値） |
-| `remove_buff` | `buffId` | バフ除去 |
-| `play_vfx` | `vfxId` | VFX 再生 |
-| `play_sfx` | `sfxId` | SFX 再生 |
-
-## BuffDefinition
-
-```json
-{
-  "id": "burn",
-  "name": "火傷",
-  "duration": 5.0,
-  "maxStack": 3,
-  "stackPolicy": "stack",
-  "refreshPolicy": "refresh_duration",
-  "statModifiers": [],
-  "onApplyEffects": [],
-  "periodicEffects": [
-    { "type": "damage", "power": 0.3, "interval": 1.0, "damageType": "fire" }
-  ],
-  "onRemoveEffects": []
-}
-```
-
-| フィールド | 説明 |
-| --- | --- |
-| `duration` | 持続時間（秒）。0より大きい必要あり |
-| `maxStack` | 最大スタック。1以上 |
-| `stackPolicy` | `stack` / `ignore` / `replace` |
-| `refreshPolicy` | `refresh_duration` / `keep` |
-| `statModifiers` | スタット修正子リスト |
-| `onApplyEffects` | 適用時に1回実行 |
-| `periodicEffects` | `interval` ごとに繰り返し実行 |
-| `onRemoveEffects` | 解除時に1回実行 |
-
-## StatModifier
-
-```json
-{ "statKey": "attack", "modifierType": "percent_add", "value": 0.2 }
-```
-
-| `modifierType` | 計算 |
-| --- | --- |
-| `flat` | base + value |
-| `percent_add` | × (1 + Σ value) — 同一スタット同士で加算 |
-| `percent_mul` | × (1 + value) — 乗算 |
-
-最終値 = `(base + flat合計) × (1 + percent_add合計) × Π(1 + percent_mul)`。
-
-バフポリシーとスタット合算の詳細な動作については [バフシステム](/buffs) ドキュメントを参照してください。
+`params` は任意のキー・値（`ParamBag`）で、effect/condition が `ctx.Params.Get<float>("power")`
+のように型変換して読み込みます。

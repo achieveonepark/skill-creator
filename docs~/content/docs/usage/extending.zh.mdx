@@ -1,0 +1,90 @@
+---
+title: 扩展
+description: 新动作、新领域、跨领域连接。
+---
+
+## 添加新动作
+
+### 路径 A — Attribute（推荐）
+
+只要编写带有 `[Effect]`/`[Condition]`/`[Trigger]` 的静态方法，`AutoRegister()` 就会
+从所有程序集中自动收集。无需接线代码。
+
+```csharp
+using AchReactive;
+
+public static class MyEffects
+{
+    [Effect("teleport")]
+    public static void Teleport(ReactionContext c) =>
+        c.Source.Position = c.World != null ? /* ... */ c.Source.Position;
+}
+```
+
+签名是固定的。
+
+```csharp
+[Effect("name")]    static void M(ReactionContext ctx)
+[Condition("name")] static bool M(ReactionContext ctx)
+[Trigger("name")]   static bool M(ReactionContext ctx, ParamBag triggerParams)
+```
+
+### 路径 B — 手动注册
+
+当需要 DI、运行时状态、闭包时使用。
+
+```csharp
+EffectRegistry.Register("teleport", c => myTeleporter.Move(c.Source));
+```
+
+## 添加新领域
+
+新领域只需**一个数据类**即可。没有系统代码。
+
+```csharp
+[Serializable]
+public class MonsterData : EntityData   // 继承 id / stats / reactions
+{
+    public int expReward;               // 领域专有字段
+}
+```
+
+```csharp
+var monsters = new DataBase<MonsterData>();
+monsters.Load(new JsonDataLoader<MonsterData>(() => json));
+
+engine.Run("on_hp_below", monsters.Get("goblin_boss"), ctx);
+```
+
+`damage`/`add_modifier` 等会直接复用技能已经注册的那些 → 0 行代码。
+数据类和 CSV 映射器可以用 [Type Designer](/usage/authoring-tools) 生成。
+
+## 跨领域
+
+当 effect 需要引用其他领域的数据时，不使用自动注册，而是用**手动注册 + 闭包捕获**
+来抓住对应的 `DataBase<T>`。不使用类型键（typeof）。
+
+```csharp
+var items = new DataBase<ItemData>();
+
+EffectRegistry.Register("drop_item", c =>
+{
+    var item = items.Get(c.Params.Get<string>("itemId")); // 将 items 作为闭包捕获
+    c.World.Spawn(item.id, c.Source.Position);
+});
+```
+
+> 建议：自动注册的 effect 只放不了解领域的纯动作，只有需要与领域耦合的 effect 才用手动注册。
+
+## AOT (IL2CPP) 注意事项
+
+`AutoRegister()` 基于反射，因此在 IL2CPP 构建中方法可能会被剥离。
+请用 `link.xml` 保留包含动作方法的程序集。
+
+```xml
+<linker>
+  <assembly fullname="YourGameAssembly" preserve="all" />
+</linker>
+```
+
+如果想避免使用反射，也可以只使用**路径 B（手动注册）**。

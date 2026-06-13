@@ -1,141 +1,164 @@
 ---
 title: API 参考
-description: 主要类与方法签名。
+description: 主要类与签名。
 ---
 
-所有类型均位于 `SkillCreator` 命名空间。
+所有命名空间均为 `AchReactive`。
 
-## SkillSystem
-
-连接所有组件的门面类。
+## DataBase&lt;T&gt;
 
 ```csharp
-public sealed class SkillSystem
+public sealed class DataBase<T> where T : IData
 {
-    public SkillDatabase Database { get; }
-    public SkillRunner Runner { get; }
-    public BuffController Buffs { get; }
-    public TargetResolver Targeting { get; }
-    public ConditionEvaluator Conditions { get; }
-    public EffectExecutor Effects { get; }
-
-    public SkillSystem(IUnitRegistry registry, IVfxPlayer vfxPlayer = null,
-                       ISfxPlayer sfxPlayer = null, ICombatLogger logger = null);
-
-    public void LoadFromJson(string skillsJson, string buffsJson);
-    public void LoadSkills(IEnumerable<SkillDefinition> skills);
-    public void LoadBuffs(IEnumerable<BuffDefinition> buffs);
-
-    public SkillUseResult Use(string skillId, IBattleUnit caster, IBattleUnit inputTarget = null);
-    public void Tick(float deltaTime);
+    void Load(IDataLoader<T> loader);   // 全量替换
+    void Add(IDataLoader<T> loader);    // 合并
+    void Add(T item);
+    T Get(string id);
+    bool TryGet(string id, out T value);
+    bool Has(string id);
+    void Clear();
+    int Count { get; }
+    IReadOnlyCollection<T> All { get; }
 }
 ```
 
-## SkillRunner
+## IDataLoader / 实现类
 
 ```csharp
-public SkillUseResult Use(string skillId, IBattleUnit caster, IBattleUnit inputTarget = null);
-
-public IEnumerator UseRoutine(string skillId, IBattleUnit caster,
-    IBattleUnit inputTarget = null, Action<SkillUseResult> onComplete = null);
-```
-
-```csharp
-public enum SkillUseStatus { Success, SkillNotFound, OnCooldown, NoTargets, ConditionFailed }
-
-public readonly struct SkillUseResult
+public interface IDataLoader<T> where T : IData
 {
-    public readonly SkillUseStatus Status;
-    public readonly List<IBattleUnit> Targets;
-    public bool Success { get; }
+    IReadOnlyList<T> Load();
+}
+
+public sealed class JsonDataLoader<T> : IDataLoader<T> where T : IData
+{
+    JsonDataLoader(string json, JsonSerializerSettings settings = null);
+    JsonDataLoader(Func<string> read, JsonSerializerSettings settings = null);
+}
+
+public sealed class CsvDataLoader<T> : IDataLoader<T> where T : IData
+{
+    CsvDataLoader(string csv, ICsvMapper<T> mapper);
+    CsvDataLoader(Func<string> read, ICsvMapper<T> mapper);
+}
+
+public interface ICsvMapper<out T> where T : IData
+{
+    T Map(IReadOnlyDictionary<string, string> row);
 }
 ```
 
-## SkillDatabase
+## 数据模型
 
 ```csharp
-public SkillDefinition GetSkill(string id);
-public BuffDefinition GetBuff(string id);
-public bool HasSkill(string id);
-public bool HasBuff(string id);
+public interface IData { string Id { get; } }
 
-public void LoadSkills(IEnumerable<SkillDefinition> skills);  // 全量替换
-public void AddSkills(IEnumerable<SkillDefinition> skills);   // 合并
-public void LoadBuffs(IEnumerable<BuffDefinition> buffs);
-public void AddBuffs(IEnumerable<BuffDefinition> buffs);
-```
-
-## SkillDataLoader
-
-```csharp
-public static List<SkillDefinition> LoadSkillsFromJson(string json);
-public static List<BuffDefinition> LoadBuffsFromJson(string json);
-public static string SkillsToJson(IEnumerable<SkillDefinition> skills, bool pretty = true);
-public static string BuffsToJson(IEnumerable<BuffDefinition> buffs, bool pretty = true);
-```
-
-## BuffController
-
-```csharp
-public void AddBuff(IBattleUnit target, string buffId, IBattleUnit source, float overrideDuration = 0f);
-public void RemoveBuff(IBattleUnit target, string buffId);
-public void Tick(float deltaTime);
-public IReadOnlyList<BuffInstance> ActiveBuffs { get; }
-```
-
-## StatSheet
-
-```csharp
-public void SetBase(string statKey, float value);
-public float GetBase(string statKey);
-public float Get(string statKey);  // 应用修正后的最终值
-
-public void AddModifier(string statKey, string modifierType, float value, object source);
-public void AddModifiers(IEnumerable<StatModifierDefinition> mods, object source, float scale = 1f);
-public void RemoveSource(object source);
-```
-
-## CooldownStore
-
-```csharp
-public CooldownStore(Func<float> timeProvider = null);
-public bool IsReady(string skillId);
-public void Start(string skillId, float cooldown);
-public float Remaining(string skillId);
-```
-
-## BuffContainer
-
-```csharp
-public bool Has(string buffId);
-public BuffInstance Get(string buffId);
-public int StackCount(string buffId);
-public IReadOnlyList<BuffInstance> Instances { get; }
-```
-
-## DataValidator
-
-```csharp
-public static ValidationReport Validate(
-    IList<SkillDefinition> skills,
-    IList<BuffDefinition> buffs,
-    ISet<string> knownVfxIds = null);
-```
-
-## 集成接口
-
-```csharp
-public interface IBattleUnit { /* 参见快速开始 */ }
-
-public interface IUnitRegistry
+[Serializable]
+public class EntityData : IData
 {
-    IReadOnlyList<IBattleUnit> AllUnits { get; }
-    void Collect(Vector3 center, float radius, List<IBattleUnit> buffer);
+    public string id;
+    public Dictionary<string, float> stats;
+    public Reaction[] reactions;
+    public string Id => id;
 }
 
-public interface IVfxPlayer { void Play(string vfxId, Vector3 position); }
-public interface ISfxPlayer { void Play(string sfxId, Vector3 position); }
-public interface ICombatLogger { void Log(string message); }
+[Serializable]
+public class Reaction
+{
+    public string trigger;
+    public ParamBag triggerParams;
+    public ConditionDef[] conditions;
+    public EffectDef[] effects;
+}
+
+[Serializable] public class EffectDef    { public string type; public ParamBag @params; }
+[Serializable] public class ConditionDef { public string type; public ParamBag @params; }
 ```
 
-内置实现包括 `UnityCombatLogger`、`NullCombatLogger` 和 `NullPresentation`。
+## ParamBag
+
+```csharp
+public sealed class ParamBag
+{
+    static readonly ParamBag Empty;
+    bool Has(string key);
+    T Get<T>(string key, T fallback = default);
+    bool TryGet<T>(string key, out T value);
+    void Set<T>(string key, T value);
+}
+```
+
+## ReactionEngine
+
+```csharp
+public sealed class ReactionEngine
+{
+    int Run(string trigger, EntityData data, ReactionContext ctx);
+}
+
+public sealed class ReactionContext
+{
+    public IEntity Source;
+    public IEntity Target;
+    public IReadOnlyList<IEntity> Targets;
+    public IWorld World;
+    public ParamBag Params;
+}
+```
+
+## Registry
+
+```csharp
+public delegate void EffectFn(ReactionContext ctx);
+public delegate bool ConditionFn(ReactionContext ctx);
+public delegate bool TriggerFn(ReactionContext ctx, ParamBag triggerParams);
+
+public static class EffectRegistry
+{
+    static void AutoRegister();
+    static void Register(string name, EffectFn fn);
+    static bool TryGet(string name, out EffectFn fn);
+    static bool Has(string name);
+    static IEnumerable<string> Names { get; }
+}
+// ConditionRegistry、TriggerRegistry 也采用相同的模式
+```
+
+## 集成边界
+
+```csharp
+public interface IEntity
+{
+    string Id { get; }
+    Vector3 Position { get; set; }
+    StatSheet Stats { get; }
+    bool IsAlive { get; }
+}
+
+public interface IWorld
+{
+    IEntity Spawn(string dataId, Vector3 at);
+    void Collect(Vector3 center, float radius, List<IEntity> buffer);
+}
+```
+
+## StatSheet / CooldownStore
+
+```csharp
+public sealed class StatSheet
+{
+    void SetBase(string statKey, float value);
+    float GetBase(string statKey);
+    float Get(string statKey);   // 应用修正器后的最终值
+    void AddModifier(string statKey, string modifierType, float value, object source);
+    void RemoveSource(object source);
+}
+
+public sealed class CooldownStore
+{
+    CooldownStore(Func<float> timeProvider = null);
+    bool IsReady(string id);
+    void Start(string id, float cooldown);
+    float Remaining(string id);
+}
+```

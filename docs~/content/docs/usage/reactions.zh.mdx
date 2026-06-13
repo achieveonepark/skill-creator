@@ -1,127 +1,85 @@
 ---
-title: 运行时
-description: SkillSystem 门面与战斗系统集成。
+title: 响应与基础动作
+description: ReactionEngine 执行流程以及所提供的 effect·condition·trigger。
 ---
 
-## SkillSystem 门面
-
-`SkillSystem` 是将数据库、运行器、目标解析器、条件评估器、效果执行器和增益控制器一次性连接的入口点。
+## 执行流程
 
 ```csharp
-var system = new SkillSystem(registry, vfxPlayer, sfxPlayer, logger);
-system.LoadFromJson(skillsJson, buffsJson);
-
-void Update() => system.Tick(Time.deltaTime);
-
-system.Use("fire_slash", caster, target);
+var engine = new ReactionEngine();
+engine.Run("on_use", skillData, ctx);
 ```
 
-内部组件可通过属性直接访问。
+`Run(trigger, data, ctx)` 会遍历 `data.reactions`，并对每个响应作如下处理。
 
-| 属性 | 类型 |
-| --- | --- |
-| `Database` | `SkillDatabase` |
-| `Runner` | `SkillRunner` |
-| `Buffs` | `BuffController` |
-| `Targeting` | `TargetResolver` |
-| `Conditions` | `ConditionEvaluator` |
-| `Effects` | `EffectExecutor` |
-
-## 技能执行
-
-### 立即执行
-
-```csharp
-SkillUseResult result = system.Use("fire_slash", caster, target);
+```
+1. trigger 通道名称是否匹配？          (不匹配则 skip)
+2. 触发器守卫是否通过？                (TriggerRegistry，没有则视为通过)
+3. 所有条件（AND）是否通过？           (ConditionRegistry)
+4. 按顺序执行各个效果                  (EffectRegistry)
 ```
 
-通过 `SkillUseResult.Status` 可以查看失败原因。
+返回值是实际执行的响应数量。
 
-| Status | 含义 |
-| --- | --- |
-| `Success` | 正常执行 |
-| `SkillNotFound` | 未找到定义 |
-| `OnCooldown` | 冷却中 |
-| `NoTargets` | 没有目标 |
-| `ConditionFailed` | 条件检查失败 |
-
-### 施法时间处理
-
-`Use` 忽略施法时间。若要等待施法，请使用协程 `UseRoutine`。
+## ReactionContext
 
 ```csharp
-StartCoroutine(system.Runner.UseRoutine("fire_slash", caster, target,
-    onComplete: r => Debug.Log(r.Status)));
-```
-
-为避免依赖 UniTask 等外部异步库，使用标准 `IEnumerator` 协程提供。
-
-## IBattleUnit 集成
-
-战斗单位实现 `IBattleUnit`。`Stats` / `Cooldowns` / `Buffs` 直接使用 Skill Creator 提供的实现。
-
-```csharp
-public interface IBattleUnit
+var ctx = new ReactionContext
 {
-    string Id { get; }
-    bool IsAlive { get; }
-    float HpRatio { get; }
-    Vector3 Position { get; }
-    Vector3 Forward { get; }
-
-    StatSheet Stats { get; }
-    CooldownStore Cooldowns { get; }
-    BuffContainer Buffs { get; }
-
-    bool IsEnemyOf(IBattleUnit other);
-    void TakeDamage(float amount, string damageType);
-    void Heal(float amount);
-}
+    Source  = caster,     // 主体
+    Target  = target,     // 单一目标
+    Targets = targets,    // 范围目标（存在时优先）
+    World   = world,      // 生成/查询边界
+};
 ```
 
-在 `TakeDamage` 中应用项目特定的伤害减算逻辑（防御、抗性等）。Skill Creator 只计算 `value + 攻击力 × power`，最终应用委托给单位。
+effect 通过 `ctx.Params` 读取自身参数。引擎会为每个项目注入。
 
-## IUnitRegistry 集成
+## 基础 Effect
 
-`circle` / `cone` 目标选择需要查询周围单位。实现 `IUnitRegistry` 进行连接。
+| type | 说明 | params |
+|---|---|---|
+| `damage` | 按 `atk*power + flat - def` 减少 hp | `power`, `flat` |
+| `heal` | 恢复 `atk*power + flat`（上限为 hp_max） | `power`, `flat` |
+| `set_stat` | 设置属性基础值 | `stat`, `value` |
+| `add_stat` | 增减属性基础值 | `stat`, `delta` |
+| `add_modifier` | 添加属性修正器（增益的基本形态） | `stat`, `modifier`, `value`, `source` |
+| `remove_modifier` | 移除 source 令牌的修正器 | `source` |
+| `spawn` | 通过 World 生成实体 | `entityId` |
+| `log` | 调试日志 | `message` |
 
-```csharp
-public sealed class MyRegistry : IUnitRegistry
-{
-    private readonly List<IBattleUnit> _units = new();
-    public IReadOnlyList<IBattleUnit> AllUnits => _units;
+`modifier` 的取值为 `flat` / `percent_add` / `percent_mul`。目标在 `Targets` 存在时
+为全部，否则为 `Target`。
 
-    public void Collect(Vector3 center, float radius, List<IBattleUnit> buffer)
-    {
-        float sqr = radius * radius;
-        foreach (var u in _units)
-            if ((u.Position - center).sqrMagnitude <= sqr)
-                buffer.Add(u);
-    }
-}
-```
+## 基础 Condition
 
-也可以用 `Physics.OverlapSphere` 实现，或遍历自己的单位列表。Skill Creator 从返回的候选中筛选**存活的敌人**，并使用至多 `maxTargets` 个。
+| type | 说明 | params |
+|---|---|---|
+| `always` | 始终为真 | — |
+| `alive` / `dead` | 目标存活/死亡 | — |
+| `chance` | 按概率通过 | `value` (0~1) |
+| `hp_below` / `hp_above` | HP 比例比较 | `value` (0~1) |
+| `stat_above` / `stat_below` | 属性值比较 | `stat`, `value` |
 
-## 冷却时间
+条件在未另行指定时，评估 `Target`（不存在则为 `Source`）。
 
-`CooldownStore` 基于绝对时间，不需要每帧更新。默认时间提供者为 `Time.time`，可注入自定义提供者用于测试或暂停。
+## 基础 Trigger 守卫
 
-```csharp
-var cooldowns = new CooldownStore(() => myGameClock.Now);
-```
+大多数触发器（`on_use`、`on_hit`、`on_equip` 等）仅凭通道名称即可发动，因此没有守卫。
+只有需要阈值比较的触发器才设有守卫。
 
-## 数据加载 / 热更新
+| type | 说明 | triggerParams |
+|---|---|---|
+| `on_hp_below` | 仅当 Source HP 比例 ≤ threshold 时发动 | `threshold` (0~1) |
 
-```csharp
-// 从 JSON 字符串加载
-system.LoadFromJson(skillsJson, buffsJson);
+## 属性约定
 
-// 直接从代码加载
-system.Database.LoadSkills(listOfSkillDefinitions);
+基础 effect/condition 使用以下键（`StatKeys`）。若要使用其他体系，直接注册 effect
+覆盖即可。
 
-// 仅合并部分（运行时热更新）
-system.Database.AddSkills(patchedSkills);
-```
-
-`LoadSkills` 全量替换，`AddSkills` 按相同 id 覆盖合并。适合接收远程 JSON 后调用 `AddSkills` 进行热更新的流程。
+| 键 | 含义 |
+|---|---|
+| `hp` | 当前生命值（资源） |
+| `hp_max` | 最大生命值（比例条件的分母） |
+| `atk` | 攻击力（应用修正器） |
+| `def` | 防御力（应用修正器） |

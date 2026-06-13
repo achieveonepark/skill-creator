@@ -1,11 +1,11 @@
 ---
 title: はじめに
-description: Skill Creator のインストールから最初のスキル実行まで。
+description: AchReactive のインストールから最初のリアクション実行まで。
 ---
 
 ## インストール
 
-Unity Package Manager で **Add package from git URL** を選択し、以下のURLを入力します。
+Unity Package Manager で **Add package from git URL** を選択し、次のアドレスを入力します。
 
 ```
 https://github.com/achieveonepark/skill-creator.git
@@ -16,103 +16,96 @@ https://github.com/achieveonepark/skill-creator.git
 ```json
 {
   "dependencies": {
-    "com.achieve.skill-creator": "https://github.com/achieveonepark/skill-creator.git"
+    "com.achieve.reactive": "https://github.com/achieveonepark/skill-creator.git"
   }
 }
 ```
 
-要件は **Unity 2021.3 以降** です。外部パッケージの依存関係はありません。
+要件は **Unity 2021.3 以上** です。依存性は `com.unity.nuget.newtonsoft-json` 一つで、
+自動的に一緒にインストールされます。
 
 ## 1. 統合境界の実装
 
-Skill Creator はあなたの戦闘システムを強制しません。2つのインターフェースを実装するだけで連携できます。
+AchReactive はあなたのゲーム構造を強制しません。2つのインターフェイスを実装するだけです。
 
-- `IBattleUnit` — 戦闘ユニット（キャラクター/モンスター）
-- `IUnitRegistry` — 広域ターゲティング用のユニット検索
-
-`Stats` / `Cooldowns` / `Buffs` は Skill Creator が提供する実装体（`StatSheet`、`CooldownStore`、`BuffContainer`）をそのまま使用できます。
+- `IEntity` — リアクションの主体/対象（キャラクター、モンスターなど）
+- `IWorld` — スポーン/範囲クエリなどのワールド境界
 
 ```csharp
-public sealed class MyUnit : MonoBehaviour, IBattleUnit
+using AchReactive;
+using UnityEngine;
+
+public sealed class Character : MonoBehaviour, IEntity
 {
-    [SerializeField] private int _team;
-    [SerializeField] private float _maxHp = 1000f, _attack = 100f;
-    private float _hp;
-
+    public StatSheet Stats { get; } = new StatSheet();   // パッケージ提供、そのまま使用
     public string Id => name;
-    public StatSheet Stats { get; private set; }
-    public CooldownStore Cooldowns { get; private set; }
-    public BuffContainer Buffs { get; private set; }
-
-    public bool IsAlive => _hp > 0f;
-    public float HpRatio => _hp / _maxHp;
-    public Vector3 Position => transform.position;
-    public Vector3 Forward => transform.forward;
+    public Vector3 Position { get => transform.position; set => transform.position = value; }
+    public bool IsAlive => Stats.GetBase(StatKeys.Hp) > 0f;
 
     void Awake()
     {
-        Stats = new StatSheet();
-        Stats.SetBase("attack", _attack);
-        Cooldowns = new CooldownStore();
-        Buffs = new BuffContainer();
-        _hp = _maxHp;
+        Stats.SetBase(StatKeys.Hp, 100f);
+        Stats.SetBase(StatKeys.HpMax, 100f);
+        Stats.SetBase(StatKeys.Atk, 10f);
+        Stats.SetBase(StatKeys.Def, 2f);
     }
-
-    public bool IsEnemyOf(IBattleUnit other) => other is MyUnit u && u._team != _team;
-    public void TakeDamage(float amount, string damageType) => _hp = Mathf.Max(0, _hp - amount);
-    public void Heal(float amount) => _hp = Mathf.Min(_maxHp, _hp + amount);
 }
 ```
 
-<Callout title="サンプル提供">
-Package Manager の **Samples → Basic Setup** をインポートすると、上記の実装（`SampleBattleUnit`）と
-`SampleUnitRegistry`、ブートストラップ例、サンプルJSONが一緒に提供されます。
-</Callout>
+## 2. データの作成
 
-## 2. システムの構成
+スキルを `reactions` 形式の JSON で定義します。（直接書かずに [Data Editor](/usage/authoring-tools) で作成しても構いません。）
 
-`SkillSystem` ファサードがデータベース・ランナー・バフコントローラーを一括で配線します。
-
-```csharp
-var system = new SkillSystem(
-    registry: myUnitRegistry,
-    vfxPlayer: myVfxPlayer,   // 任意 (null可)
-    sfxPlayer: mySfxPlayer,   // 任意 (null可)
-    logger: UnityCombatLogger.Instance);
-
-system.LoadFromJson(skillsJson, buffsJson);
+```json
+[
+  {
+    "id": "fire_slash",
+    "cooldown": 5.0,
+    "reactions": [
+      {
+        "trigger": "on_use",
+        "conditions": [{ "type": "alive" }],
+        "effects": [
+          { "type": "damage", "params": { "power": 1.8 } },
+          { "type": "log", "params": { "message": "fire_slash 명중!" } }
+        ]
+      }
+    ]
+  }
+]
 ```
 
-## 3. 毎フレームの進行
-
-バフの持続時間と周期効果を進めるには、毎フレーム `Tick` を呼び出します。
+## 3. 組み立てと実行
 
 ```csharp
-void Update() => system.Tick(Time.deltaTime);
+using AchReactive;
+
+var skills = new DataBase<SkillData>();
+var engine = new ReactionEngine();
+
+void Start()
+{
+    // 動作プールの自動収集（基本の damage/heal/… を含む）
+    EffectRegistry.AutoRegister();
+    ConditionRegistry.AutoRegister();
+    TriggerRegistry.AutoRegister();
+
+    // データの読み込み — ソースは自由
+    skills.Load(new JsonDataLoader<SkillData>(() => skillsJson.text));
+}
+
+void UseSkill(IEntity caster, IEntity target)
+{
+    var ctx = new ReactionContext { Source = caster, Target = target };
+    engine.Run("on_use", skills.Get("fire_slash"), ctx);
+}
 ```
 
-## 4. スキルの使用
+`damage`、`heal`、`add_modifier` のような基本 effect はパッケージが提供するため、別途のコードは不要です。
+`Samples` の **Basic** 例で、動作するシーンをすぐに確認できます。
 
-```csharp
-// 即時実行（詠唱時間を無視）
-SkillUseResult result = system.Use("fire_slash", caster, target);
-if (!result.Success)
-    Debug.Log(result.Status); // SkillNotFound / OnCooldown / NoTargets / ConditionFailed
+## 次のステップ
 
-// 詠唱時間を待つ場合はコルーチン
-StartCoroutine(system.Runner.UseRoutine("fire_slash", caster, target,
-    r => Debug.Log(r.Status)));
-```
-
-## データの保存場所
-
-開発段階と運用段階で推奨される保存場所が異なります。
-
-| フェーズ | 場所 |
-| --- | --- |
-| 開発中 | `Assets/GameData/Skills/skills.json` |
-| ビルドに含める | `StreamingAssets/GameData/skills.json` |
-| ランタイムパッチ | `Application.persistentDataPath/GameData/skills.json` |
-| リモート | `CDN/GameData/skills.json` |
-
-`SkillDataLoader` は文字列のみを受け取るため、どこから読み込んでも同様に動作します。
+- [概念](/usage/concepts) — なぜこの構造なのか
+- [基本動作プール](/usage/reactions) — 提供される effect/condition の一覧
+- [拡張する](/usage/extending) — 新しい動作と新しいドメイン

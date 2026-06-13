@@ -1,68 +1,52 @@
 ---
-title: Skill Creator
-description: Unityでスキル・バフ・ターゲティング・条件・エフェクトをデータの組み合わせで制作・検証するコンテンツ制作ツール。
+title: AchReactive
+description: データの組み合わせであらゆるゲームコンテンツを作成する、ドメイン非依存のリアクションフレームワーク。
 ---
 
-**Skill Creator** は、Unityでスキルとバフを**データ（JSON）ベース**で、コードのハードコーディングなしに制作できるコンテンツ制作ツールです。
+**AchReactive** は、スキル・モンスター・アイテム・マップ・クエストなど、あらゆるゲームコンテンツを
+**トリガー → 条件 → 効果** のデータの組み合わせで作成するUnityフレームワークです。
 
-スキルを巨大なクラスとして作るのではなく、小さな機能の部品をデータで組み合わせます。`ScriptableObject` への依存を最小限に抑え、JSON / CSV / Spreadsheet / リモートデータベースで運用できます。
+## 核心となるアイデア
 
-```text
-Trigger → Targeting → Condition → Effect → Result
+> ドメインは無限だが、動作（primitive）は有限である。
+
+ドメインごとにシステムを新しく作ると、`도메인 × 동작` マトリクスを毎回埋める必要があります。
+AchReactive は動作プールを**すべてのドメインが共有**するようにし、この掛け算を足し算に変えます。
+2つ目のドメインからはほぼコストゼロです。
+
+```
+        damage  heal  add_modifier  spawn
+Skill     ✓      ✓        ✓
+Monster                    ✓          ✓     ← 같은 effect 재사용
+Item               ✓       ✓
 ```
 
-## 何を解決するのか
+## 特徴
 
-このツールの本質はスキルシステム自体ではなく、**コンテンツ制作パイプライン**です。
+- **ドメイン非依存** — `DataBase<T>` 一つで Skill/Monster/Item/… をすべて処理
+- **ソース非依存** — JSON・CSV・リモートなどどこからでもロード（`IDataLoader<T>` を実装するだけで新しいソースに対応）
+- **動作の自動登録** — `[Effect]`/`[Condition]`/`[Trigger]` メソッドをリフレクションで収集、配線0行
+- **UIToolkit オーサリングツール** — 型とデータをエディタで生成（JSONの手書き不要）
+- **依存性最小** — Newtonsoft.Json 一つ
 
-| 良い方向 | 悪い方向 |
-| --- | --- |
-| プランナーがデータを作る | スキルごとにクラスを作る |
-| ツールがエラーを検出する | 例外スキルが増え続ける |
-| ランタイムはデータをそのまま実行する | データはあるが結局コード修正が必要 |
-| シミュレーターがバランスを検証する | 検証なしでランタイムでクラッシュ |
-| 運用データに簡単に切り替えられる | Unity Editor 内でしか編集できない |
-
-## 概要
-
-スキル1つはこのようなJSONで表現されます。
-
-```json
-{
-  "id": "fire_slash",
-  "name": "炎の斬撃",
-  "cooldown": 5.0,
-  "castTime": 0.3,
-  "targeting": { "type": "cone", "range": 5.0, "angle": 60, "maxTargets": 5 },
-  "conditions": [{ "type": "alive" }],
-  "effects": [
-    { "type": "damage", "power": 1.8, "damageType": "physical" },
-    { "type": "add_buff", "buffId": "burn", "duration": 5.0 },
-    { "type": "play_vfx", "vfxId": "fire_slash_vfx" }
-  ]
-}
-```
-
-ランタイムはこのデータをそのまま実行します。
+## ひと目で見る
 
 ```csharp
-var system = new SkillSystem(unitRegistry, vfxPlayer, sfxPlayer, UnityCombatLogger.Instance);
-system.LoadFromJson(skillsJson, buffsJson);
+// 1) 動作プールの自動収集（基本の effect/condition/trigger を含む）
+EffectRegistry.AutoRegister();
+ConditionRegistry.AutoRegister();
+TriggerRegistry.AutoRegister();
 
-system.Use("fire_slash", caster, target);
+// 2) データの読み込み（ソースは自由）
+var skills = new DataBase<SkillData>();
+skills.Load(new JsonDataLoader<SkillData>(() => json));
+
+// 3) 実行 — ドメインが異なっても同じ
+engine.Run("on_use", skills.Get("fire_slash"), ctx);
 ```
-
-## 主な特徴
-
-- **外部依存性ゼロ** — Unityの組み込み `JsonUtility` のみ使用。UniTask・Newtonsoftは不要です。
-- **統合境界インターフェース** — `IBattleUnit` を実装するだけで、あらゆる戦闘システムと連携できます。
-- **検証優先** — `DataValidator` が不正なデータをランタイム前に検出します。
-- **エディターツール** — Skill / Buff Editor、Preview Simulator を提供。
-- **ランタイムパッチ可能** — JSONを差し替えるだけでバランス変更が即座に反映されます。
 
 ## 次のステップ
 
-- [はじめに](/getting-started) — インストールと最初のスキル実行
-- [コアコンセプト](/concepts) — 実行フローと設計思想
-- [データフォーマット](/data-format) — スキル・バフ JSONリファレンス
-- [ランタイム](/runtime) — `SkillSystem` と統合方法
+- [はじめに](/getting-started) — インストールから最初のリアクション実行まで
+- [概念](/usage/concepts) — トリガー/条件/効果とドメインモデル
+- [拡張する](/usage/extending) — 新しい動作・新しいドメインの追加

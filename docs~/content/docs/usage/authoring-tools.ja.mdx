@@ -1,88 +1,60 @@
 ---
-title: エディターツール
-description: Skill / Buff Editor、Preview Simulator、データ検証。
+title: オーサリングツール
+description: UIToolkit ベースの Type Designer と Data Editor。
 ---
 
-`Tools/Skill Creator` メニューから3つのエディターウィンドウを使用できます。すべて JSON ファイルを直接読み書きします。
+データを JSON で手書きしません。2つの UIToolkit エディタウィンドウがコードとデータを生成します。
 
-## Skill Editor
+## Type Designer — 型からコードを生成
 
-`Tools/Skill Creator/Skill Editor`
+メニュー: **Tools ▸ AchReactive ▸ Type Designer**
 
-- スキルリストの表示 / 追加 / 削除 / 複製
-- id、名前、クールダウン、詠唱時間の編集
-- ターゲティングタイプの選択とパラメーター入力
-- 条件の追加 / 削除
-- エフェクトの追加 / 削除（タイプ別フィールドを自動表示）
-- **Save** — JSON保存
-- **Validate** — データ検証
-
-ターゲティング・条件・エフェクトのタイプはドロップダウンで選択するため、タイプミスが発生しません。非対応の値が入力されても、リストに "(非対応)" として表示して保持します。
-
-## Buff Editor
-
-`Tools/Skill Creator/Buff Editor`
-
-- バフリスト / 追加 / 削除 / 複製
-- 持続時間、最大スタック、スタック・更新ポリシーの編集
-- スタット修正子の追加
-- 周期 / 適用 / 解除エフェクトの編集
-- Save / Validate
-
-## Preview Simulator
-
-`Tools/Skill Creator/Preview Simulator`
-
-実際の戦闘なしにスキルをシミュレートしてバランスを検証します。
-
-入力:
-
-- 詠唱者の攻撃力
-- 対象の防御力
-- 対象の数
-- 対象のHPレシオ
-- シミュレーション時間（バフ周期効果の進行用）
-
-ダミーの詠唱者/ターゲットを作成し、実際の `SkillSystem` を動かして、実行ログと適用結果を表示します。
-
-```text
-fire_slash used by Caster
-Target resolved: Target_1, Target_2
-Damage: Target_1 - 180 (physical)
-Damage: Target_2 - 180 (physical)
-Buff Applied: burn to Target_1
-Result: Success, Targets: 2
+```
+Type Name:   [ Monster        ]
+Base Type:   [ EntityData ▾   ]
+Output:      [ Assets/Generated ]
+Fields:
+  [ hp        ] [ Float    ▾ ] [−]
+  [ dropTable ] [ StringArray ▾ ] [−]
+  [ + Add Field ]
+                              [ Generate ]
 ```
 
-## データ検証
+**Generate** を押すと2つのファイルが生成されます。
 
-検証は単純な入力ツール以上の価値があります。**不正なデータをランタイム前に検出します。**
+- `MonsterData.cs` — `EntityData` を継承した `IData` 実装（Newtonsoft 互換）
+- `MonsterCsvMapper.cs` — `ICsvMapper<MonsterData>` 実装
 
-`DataValidator` はエディター・ランタイムのどちらからでも呼び出せます。
+サポートするフィールド型: `string`, `int`, `float`, `bool`、そして各配列型（`string[]` など）。
+配列は CSV では `|` で区切ります。
 
-```csharp
-ValidationReport report = DataValidator.Validate(skills, buffs);
-if (report.HasErrors)
-    Debug.LogError(report); // エラー/警告リストを出力
+生成を望まない場合は、手で `class MonsterData : EntityData { ... }` を書いても100%動作します。
+
+## Data Editor — データの生成/編集
+
+メニュー: **Tools ▸ AchReactive ▸ Data Editor**
+
+- 左側: インスタンス一覧（+ Instance で追加）
+- 右側: 選択したインスタンスの `id` と **Reactions ビルダー**
+  - **Trigger** ドロップダウン — 登録済みトリガー + 一般チャンネル（on_use, on_hit …）
+  - **Conditions / Effects** — `type` はレジストリから埋めたドロップダウン、`params` は JSON
+- 上部 **Export JSON…** — `reactions` 形式の配列として保存
+
+```
+Reactions
+ ┌────────────────────────────────────────┐
+ │ Trigger: [ on_use ▾ ]              [−]  │
+ │ Conditions (AND)                        │
+ │   [ alive ▾ ] [ {} ]              [−]   │
+ │   [ + Condition ]                       │
+ │ Effects                                 │
+ │   [ damage ▾ ] [ { "power": 1.8 } ] [−] │
+ │   [ + Effect ]                          │
+ └────────────────────────────────────────┘
 ```
 
-### スキル検証項目
+核心は、**trigger/condition/effect の型を直接タイピングしない**という点です。
+ドロップダウンがレジストリに実際に登録された名前だけを表示するため、タイプミスや未登録の型が根本から防がれます。
+保存された JSON は `JsonDataLoader` がそのまま読み込みます。
 
-- id が空 / 重複
-- cooldown・castTime が負数
-- targeting.type が非対応
-- effects が最低1個
-- effect.type が非対応
-- `add_buff` の buffId の存在確認
-- `play_vfx` の vfxId（known セット指定時に警告）
-
-### バフ検証項目
-
-- id が空 / 重複
-- duration ≤ 0
-- maxStack < 1
-- stackPolicy・refreshPolicy が非対応
-- periodicEffect.interval ≤ 0
-- statModifier.statKey / modifierType
-
-`ValidationReport.ToString()` は人間が読みやすいエラー・警告の要約を返します。
+> オーサリングは UI、ランタイムの消費はデータファイル — ユーザーが JSON を直接触る必要がありません。

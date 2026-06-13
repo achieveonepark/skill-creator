@@ -1,141 +1,95 @@
 ---
-title: 数据格式
-description: 技能与增益 JSON 模式及支持类型参考。
+title: 数据与来源
+description: IData、DataBase 以及 JSON·CSV·自定义加载器。
 ---
 
-技能和增益分别定义在 `skills.json` 和 `buffs.json` 中。根节点支持对象包装器（`{ "skills": [...] }`）和顶层数组（`[...]`）两种形式。
+## IData 与 DataBase
 
-## SkillDefinition
+所有领域数据都实现 `IData`（即 `string Id`）。`DataBase<T>` 是一个 `id → 定义` 的
+内存索引，**所有领域都以泛型方式共享这一个类**。
+
+```csharp
+var skills = new DataBase<SkillData>();
+skills.Load(loader);              // 全量替换
+skills.Add(loader);               // 合并
+SkillData s = skills.Get("fire_slash");
+bool has   = skills.Has("fire_slash");
+```
+
+## 来源无关 — IDataLoader&lt;T&gt;
+
+无论从哪里读取数据，都通过 `IDataLoader<T>` 这一相同的边界。包提供了两个实现。
+
+### JSON
+
+基于 Newtonsoft.Json，因此可直接读取顶层数组。（无需包装类）
+
+```csharp
+// 直接传字符串
+skills.Load(new JsonDataLoader<SkillData>(json));
+
+// 延迟读取（文件/StreamingAssets/网络）
+skills.Load(new JsonDataLoader<SkillData>(
+    () => File.ReadAllText(path)));
+```
+
+```json
+[
+  { "id": "fire_slash", "cooldown": 5.0, "reactions": [ /* ... */ ] }
+]
+```
+
+### CSV
+
+将第一行作为表头，并用 `ICsvMapper<T>` 转换每一行。支持引号/逗号/换行。
+
+```csharp
+skills.Load(new CsvDataLoader<SkillData>(
+    () => File.ReadAllText(path), new SkillCsvMapper()));
+```
+
+`ICsvMapper<T>` 实现类通常由 [Type Designer](/usage/authoring-tools) 生成。
+
+### 自定义来源
+
+二进制、ScriptableObject、公司内部格式等，只需实现 `IDataLoader<T>` 即可。
+
+```csharp
+public sealed class MyBinaryLoader<T> : IDataLoader<T> where T : IData
+{
+    public IReadOnlyList<T> Load() { /* 自行解码 */ }
+}
+```
+
+> 像编辑器用 JSON、实际运营用 CSV/Remote 这样，**只需替换来源**即可。
+
+## 数据格式（reactions）
+
+领域数据继承 `EntityData`。公共字段为 `id`、`stats`、`reactions`。
+
+```csharp
+[Serializable]
+public class SkillData : EntityData   // 继承 id / stats / reactions
+{
+    public float cooldown;
+    public float castTime;
+}
+```
 
 ```json
 {
   "id": "fire_slash",
-  "name": "炎斩",
   "cooldown": 5.0,
-  "castTime": 0.3,
-  "targeting": { "type": "cone", "range": 5.0, "angle": 60, "maxTargets": 5 },
-  "conditions": [{ "type": "alive" }],
-  "effects": [
-    { "type": "damage", "power": 1.8, "damageType": "physical" },
-    { "type": "add_buff", "buffId": "burn", "duration": 5.0 },
-    { "type": "play_vfx", "vfxId": "fire_slash_vfx" }
+  "stats": { "manaCost": 20 },
+  "reactions": [
+    {
+      "trigger": "on_use",
+      "conditions": [{ "type": "alive" }],
+      "effects": [{ "type": "damage", "params": { "power": 1.8 } }]
+    }
   ]
 }
 ```
 
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| `id` | string | 唯一标识符（必填，不可重复） |
-| `name` | string | 显示名称 |
-| `cooldown` | float | 冷却时间（秒），不可为负数 |
-| `castTime` | float | 施法时间（秒），不可为负数 |
-| `targeting` | object | 目标选择定义 |
-| `conditions` | array | 执行条件列表（AND 逻辑） |
-| `effects` | array | 效果列表（至少1个） |
-
-## Targeting
-
-```json
-{ "type": "cone", "range": 5.0, "radius": 0, "angle": 60, "maxTargets": 5 }
-```
-
-| 字段 | 说明 |
-| --- | --- |
-| `type` | 目标选择方式（见下表） |
-| `range` | cone 的射程 |
-| `radius` | circle 的半径 |
-| `angle` | cone 的扇形角度（度） |
-| `maxTargets` | 最大目标数，0或负数表示无限制 |
-
-| `type` | 行为 |
-| --- | --- |
-| `self` | 施法者自身 |
-| `single_enemy` | 指定目标1个 |
-| `circle` | 半径内的敌人（需要注册表） |
-| `cone` | 射程和角度内的敌人（需要注册表） |
-
-## Condition
-
-条件在效果执行前检查，任意一个条件失败则技能不执行。
-
-```json
-{ "type": "chance", "value": 0.3 }
-{ "type": "hp_below", "value": 0.5 }
-{ "type": "has_buff", "key": "burn" }
-```
-
-| `type` | 使用字段 | 含义 |
-| --- | --- | --- |
-| `always` | — | 始终通过 |
-| `alive` | — | 存在存活目标则通过 |
-| `chance` | `value` | 概率（0~1） |
-| `hp_below` | `value` | 存在 HP 比例 ≤ value 的目标 |
-| `hp_above` | `value` | 存在 HP 比例 ≥ value 的目标 |
-| `has_buff` | `key` | 存在拥有该增益的目标 |
-| `not_has_buff` | `key` | 所有目标均未拥有该增益 |
-| `target_count_above` | `value` | 目标数量 ≥ value |
-| `target_count_below` | `value` | 目标数量 ≤ value |
-
-## Effect
-
-```json
-{ "type": "damage", "power": 1.8, "value": 0, "damageType": "physical" }
-{ "type": "heal", "power": 2.0 }
-{ "type": "add_buff", "buffId": "burn", "duration": 5.0 }
-{ "type": "play_vfx", "vfxId": "fire_slash_vfx" }
-```
-
-| `type` | 使用字段 | 含义 |
-| --- | --- | --- |
-| `damage` | `power`, `value`, `damageType` | 伤害 = `value + 攻击力 × power` |
-| `heal` | `power`, `value` | 治疗量 = `value + 攻击力 × power` |
-| `add_buff` | `buffId`, `duration` | 施加增益（`duration` 为0时使用增益默认值） |
-| `remove_buff` | `buffId` | 移除增益 |
-| `play_vfx` | `vfxId` | 播放 VFX |
-| `play_sfx` | `sfxId` | 播放 SFX |
-
-## BuffDefinition
-
-```json
-{
-  "id": "burn",
-  "name": "燃烧",
-  "duration": 5.0,
-  "maxStack": 3,
-  "stackPolicy": "stack",
-  "refreshPolicy": "refresh_duration",
-  "statModifiers": [],
-  "onApplyEffects": [],
-  "periodicEffects": [
-    { "type": "damage", "power": 0.3, "interval": 1.0, "damageType": "fire" }
-  ],
-  "onRemoveEffects": []
-}
-```
-
-| 字段 | 说明 |
-| --- | --- |
-| `duration` | 持续时间（秒），必须大于0 |
-| `maxStack` | 最大层数，不小于1 |
-| `stackPolicy` | `stack` / `ignore` / `replace` |
-| `refreshPolicy` | `refresh_duration` / `keep` |
-| `statModifiers` | 属性修正列表 |
-| `onApplyEffects` | 施加时执行一次 |
-| `periodicEffects` | 每隔 `interval` 重复执行 |
-| `onRemoveEffects` | 移除时执行一次 |
-
-## StatModifier
-
-```json
-{ "statKey": "attack", "modifierType": "percent_add", "value": 0.2 }
-```
-
-| `modifierType` | 计算方式 |
-| --- | --- |
-| `flat` | base + value |
-| `percent_add` | × (1 + Σ value) — 同一属性之间相加 |
-| `percent_mul` | × (1 + value) — 乘算 |
-
-最终值 = `(base + flat之和) × (1 + percent_add之和) × Π(1 + percent_mul)`。
-
-增益策略与属性叠加的详细行为请参阅 [增益系统](/buffs) 文档。
+`params` 是任意键值对（`ParamBag`），effect/condition 会像 `ctx.Params.Get<float>("power")`
+这样进行类型转换后读取。

@@ -1,0 +1,90 @@
+---
+title: 拡張する
+description: 新しい動作、新しいドメイン、クロスドメイン連携。
+---
+
+## 新しい動作の追加
+
+### 道 A — Attribute（推奨）
+
+`[Effect]`/`[Condition]`/`[Trigger]` を付けた静的メソッドを書くと、`AutoRegister()` が
+すべてのアセンブリから自動収集します。配線コードは不要です。
+
+```csharp
+using AchReactive;
+
+public static class MyEffects
+{
+    [Effect("teleport")]
+    public static void Teleport(ReactionContext c) =>
+        c.Source.Position = c.World != null ? /* ... */ c.Source.Position;
+}
+```
+
+シグネチャは固定です。
+
+```csharp
+[Effect("name")]    static void M(ReactionContext ctx)
+[Condition("name")] static bool M(ReactionContext ctx)
+[Trigger("name")]   static bool M(ReactionContext ctx, ParamBag triggerParams)
+```
+
+### 道 B — 手動登録
+
+DI、ランタイム状態、クロージャが必要なときに使用します。
+
+```csharp
+EffectRegistry.Register("teleport", c => myTeleporter.Move(c.Source));
+```
+
+## 新しいドメインの追加
+
+新しいドメインは**データクラス1個**で十分です。システムコードは不要です。
+
+```csharp
+[Serializable]
+public class MonsterData : EntityData   // id / stats / reactions 상속
+{
+    public int expReward;               // 도메인 고유 필드
+}
+```
+
+```csharp
+var monsters = new DataBase<MonsterData>();
+monsters.Load(new JsonDataLoader<MonsterData>(() => json));
+
+engine.Run("on_hp_below", monsters.Get("goblin_boss"), ctx);
+```
+
+`damage`/`add_modifier` などは、スキルが既に登録したものをそのまま再利用します → コード0行。
+データクラスと CSV マッパーは [Type Designer](/usage/authoring-tools) で生成できます。
+
+## クロスドメイン
+
+effect が別のドメインのデータを参照する必要があれば、自動登録ではなく**手動登録 + クロージャキャプチャ**で
+該当の `DataBase<T>` を捕捉します。型キー（typeof）を使いません。
+
+```csharp
+var items = new DataBase<ItemData>();
+
+EffectRegistry.Register("drop_item", c =>
+{
+    var item = items.Get(c.Params.Get<string>("itemId")); // items 를 클로저로 캡처
+    c.World.Spawn(item.id, c.Source.Position);
+});
+```
+
+> 推奨: 自動登録の effect はドメインを知らない純粋な動作のみ、ドメイン結合が必要な effect だけ手動登録。
+
+## AOT (IL2CPP) の注意
+
+`AutoRegister()` はリフレクションベースのため、IL2CPP ビルドでメソッドがストリッピングされる可能性があります。
+動作メソッドを含むアセンブリを `link.xml` で保存してください。
+
+```xml
+<linker>
+  <assembly fullname="YourGameAssembly" preserve="all" />
+</linker>
+```
+
+リフレクションを避けたい場合は、**道 B（手動登録）** のみを使用しても構いません。

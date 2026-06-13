@@ -1,88 +1,60 @@
 ---
-title: Editor Tools
-description: Skill / Buff Editor, Preview Simulator, and data validation.
+title: Authoring tools
+description: The UIToolkit-based Type Designer and Data Editor.
 ---
 
-Three editor windows are available from the `Tools/Skill Creator` menu. All of them read and write JSON files directly.
+You don't write data by hand in JSON. Two UIToolkit editor windows generate code and data.
 
-## Skill Editor
+## Type Designer — generate code from a type
 
-`Tools/Skill Creator/Skill Editor`
+Menu: **Tools ▸ AchReactive ▸ Type Designer**
 
-- View / add / delete / duplicate skill list
-- Edit id, name, cooldown, and cast time
-- Select targeting type and enter parameters
-- Add / delete conditions
-- Add / delete effects (fields auto-displayed per type)
-- **Save** — Save to JSON
-- **Validate** — Validate data
-
-Targeting, condition, and effect types are selected from dropdowns so typos cannot occur. Unsupported values that come in are displayed as "(unsupported)" in the list and preserved.
-
-## Buff Editor
-
-`Tools/Skill Creator/Buff Editor`
-
-- Buff list / add / delete / duplicate
-- Edit duration, max stack, stack and refresh policies
-- Add stat modifiers
-- Edit periodic / apply / remove effects
-- Save / Validate
-
-## Preview Simulator
-
-`Tools/Skill Creator/Preview Simulator`
-
-Simulates skills without an actual battle to validate balance.
-
-Inputs:
-
-- Caster attack power
-- Target defense
-- Number of targets
-- Target HP ratio
-- Simulation time (for advancing buff periodic effects)
-
-Creates dummy caster/targets, runs the actual `SkillSystem`, and displays execution logs and applied results.
-
-```text
-fire_slash used by Caster
-Target resolved: Target_1, Target_2
-Damage: Target_1 - 180 (physical)
-Damage: Target_2 - 180 (physical)
-Buff Applied: burn to Target_1
-Result: Success, Targets: 2
+```
+Type Name:   [ Monster        ]
+Base Type:   [ EntityData ▾   ]
+Output:      [ Assets/Generated ]
+Fields:
+  [ hp        ] [ Float    ▾ ] [−]
+  [ dropTable ] [ StringArray ▾ ] [−]
+  [ + Add Field ]
+                              [ Generate ]
 ```
 
-## Data validation
+Pressing **Generate** produces two files.
 
-Validation is more valuable than a simple input tool. **It catches invalid data before runtime.**
+- `MonsterData.cs` — an `IData` implementation that inherits `EntityData` (Newtonsoft compatible)
+- `MonsterCsvMapper.cs` — an `ICsvMapper<MonsterData>` implementation
 
-`DataValidator` can be called from both editor and runtime.
+Supported field types: `string`, `int`, `float`, `bool`, and their array forms (`string[]`, etc.).
+Arrays are separated by `|` in CSV.
 
-```csharp
-ValidationReport report = DataValidator.Validate(skills, buffs);
-if (report.HasErrors)
-    Debug.LogError(report); // Outputs list of errors/warnings
+If you'd rather not generate, writing `class MonsterData : EntityData { ... }` by hand works 100% as well.
+
+## Data Editor — create/edit data
+
+Menu: **Tools ▸ AchReactive ▸ Data Editor**
+
+- Left: instance list (add with + Instance)
+- Right: the selected instance's `id` and the **Reactions builder**
+  - **Trigger** dropdown — registered triggers + common channels (on_use, on_hit …)
+  - **Conditions / Effects** — `type` is a dropdown populated from the registry, `params` is JSON
+- Top **Export JSON…** — save as a `reactions`-format array
+
+```
+Reactions
+ ┌────────────────────────────────────────┐
+ │ Trigger: [ on_use ▾ ]              [−]  │
+ │ Conditions (AND)                        │
+ │   [ alive ▾ ] [ {} ]              [−]   │
+ │   [ + Condition ]                       │
+ │ Effects                                 │
+ │   [ damage ▾ ] [ { "power": 1.8 } ] [−] │
+ │   [ + Effect ]                          │
+ └────────────────────────────────────────┘
 ```
 
-### Skill validation items
+The key point is that **you don't type trigger/condition/effect types directly**.
+The dropdowns expose only the names actually registered in the registry, so typos and unregistered types are blocked at the source.
+The saved JSON is read by `JsonDataLoader` as is.
 
-- id empty / duplicate
-- cooldown / castTime negative
-- targeting.type unsupported
-- effects minimum of 1
-- effect.type unsupported
-- buffId existence for `add_buff`
-- vfxId for `play_vfx` (warning if known set provided)
-
-### Buff validation items
-
-- id empty / duplicate
-- duration ≤ 0
-- maxStack < 1
-- stackPolicy / refreshPolicy unsupported
-- periodicEffect.interval ≤ 0
-- statModifier.statKey / modifierType
-
-`ValidationReport.ToString()` returns a human-readable summary of errors and warnings.
+> Authoring is UI, runtime consumption is data files — users never need to touch JSON directly.

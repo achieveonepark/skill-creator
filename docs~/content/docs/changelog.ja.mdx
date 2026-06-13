@@ -1,29 +1,30 @@
 ---
 title: 変更履歴
-description: Skill Creator リリースノート。
+description: AchReactive リリースノート。
 ---
 
-## 0.1.0 — 2026-06-12
+## 0.1.0
 
-初回リリース。データ駆動スキル/バフシステムのMVP。
+初公開。スキル専用ツール（Skill Creator）から **ドメイン非依存リアクションフレームワーク AchReactive** へ移行。
 
 ### 追加
 
-- **データ定義** — `SkillDefinition`、`BuffDefinition`、`TargetingDefinition`、`ConditionDefinition`、`EffectDefinition`、`StatModifierDefinition`（JSONシリアライズ対応）
-- **ランタイム** — `SkillSystem` ファサード、`SkillRunner`、`TargetResolver`、`ConditionEvaluator`、`EffectExecutor`、`BuffController`、`SkillDatabase`、`SkillDataLoader`
-- **統合境界** — `IBattleUnit`、`IUnitRegistry`、`IVfxPlayer`、`ISfxPlayer`、`ICombatLogger`
-- **サポート実装** — `StatSheet`、`CooldownStore`、`BuffContainer`、`BuffInstance`
-- **検証** — `DataValidator`、`ValidationReport`
-- **エディターツール** — Skill Editor、Buff Editor、Preview Simulator、JSON Exporter
-- **サンプル** — Basic Setup（サンプルユニット/レジストリ/ブートストラップ、skills.json、buffs.json）
+- **Data Layer** — `IData`, `IDataLoader<T>`, `DataBase<T>`（typeof 不使用）
+- **Loader** — `JsonDataLoader<T>`（Newtonsoft）、`CsvDataLoader<T>` + `ICsvMapper<T>`
+- **Reaction Layer** — `Reaction`, `EntityData`, `ParamBag`, `ReactionContext`, `ReactionEngine`
+- **Registry** — `Effect/Condition/TriggerRegistry`（Attribute 自動収集 + 手動登録）
+- **基本動作プール** — effect 8種、condition 8種、trigger ガード 1種
+- **統合境界** — `IEntity`, `IWorld`, `StatSheet`, `CooldownStore`
+- **UIToolkit オーサリングツール** — Type Designer（コード生成）、Data Editor（データ生成）
+- **Basic サンプル** — スキル + モンスターの 2 ドメイン例
 
-### 対応タイプ
+### 変更
 
-| 分類 | 値 |
-| --- | --- |
-| Targeting | `self`, `single_enemy`, `circle`, `cone` |
-| Condition | `always`, `alive`, `chance`, `hp_below`, `hp_above`, `has_buff`, `not_has_buff`, `target_count_above`, `target_count_below` |
-| Effect | `damage`, `heal`, `add_buff`, `remove_buff`, `play_vfx`, `play_sfx` |
-| StackPolicy | `stack`, `ignore`, `replace` |
-| RefreshPolicy | `refresh_duration`, `keep` |
-| StatModifier | `flat`, `percent_add`, `percent_mul` |
+- パッケージ名 `com.achieve.skill-creator` → `com.achieve.reactive`
+- 名前空間 → `AchReactive`
+- `JsonUtility` → `Newtonsoft.Json`（ラッパークラスを削除）
+
+### 削除
+
+- スキル専用レガシー（`SkillSystem`/`SkillRunner`/`EffectExecutor` など）
+- バフ持続/スタックシステムはランタイム状態の再設計が必要なため一時保留（後続予定）
