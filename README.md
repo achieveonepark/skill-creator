@@ -2,7 +2,7 @@
 
 Unity용 **도메인 무관 리액션 프레임워크**. 스킬·몬스터·아이템 등 어떤 도메인이든 Trigger → Condition → Effect 파이프라인 하나로 표현합니다.
 
-> 📖 전체 문서: **https://docs.somiri.dev/reactive**
+> 📖 전체 문서: **https://docs.somiri.dev/AchReactive**
 
 ## 설치
 
