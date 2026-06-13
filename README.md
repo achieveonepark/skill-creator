@@ -1,21 +1,15 @@
-# Skill Creator
+# AchReactive
 
-Unity에서 **스킬, 버프, 타겟팅, 조건, 효과를 데이터(JSON) 조합으로 제작하고 검증**하는 콘텐츠 제작 도구입니다.
+Unity용 **도메인 무관 리액션 프레임워크**. 스킬·몬스터·아이템 등 어떤 도메인이든 Trigger → Condition → Effect 파이프라인 하나로 표현합니다.
 
-스킬 하나를 거대한 클래스로 만들지 않고, 작은 기능 조각들을 데이터로 조합합니다. `ScriptableObject` 의존 없이 JSON / Spreadsheet / Remote Data 기반으로 운용할 수 있습니다.
-
-```text
-Trigger → Targeting → Condition → Effect → Result
-```
-
-> 📖 전체 문서: **https://docs.somiri.dev/skill-creator**
+> 📖 전체 문서: **https://docs.somiri.dev/reactive**
 
 ## 설치
 
 Unity Package Manager → **Add package from git URL**:
 
 ```
-https://github.com/achieveonepark/skill-creator.git
+https://github.com/achieveonepark/AchReactive.git
 ```
 
 또는 `Packages/manifest.json` 에 추가:
@@ -23,52 +17,36 @@ https://github.com/achieveonepark/skill-creator.git
 ```json
 {
   "dependencies": {
-    "com.skillforge.core": "https://github.com/achieveonepark/skill-creator.git"
+    "com.achieve.reactive": "https://github.com/achieveonepark/AchReactive.git"
   }
 }
 ```
 
-외부 의존성이 없습니다. JSON 직렬화는 Unity 내장 `JsonUtility` 를 사용합니다.
+요구 사항: **Unity 2021.3 이상**. 의존성은 `com.unity.nuget.newtonsoft-json` 하나이며 자동으로 설치됩니다.
 
 ## 빠른 시작
 
 ```csharp
-// 1) 통합 경계 구현: 본인의 전투 시스템이 IBattleUnit / IUnitRegistry 를 구현
-//    (Samples~/BasicSetup 에 예제 구현 포함)
+// 1. 등록
+EffectRegistry.AutoRegister();
+ConditionRegistry.AutoRegister();
+TriggerRegistry.AutoRegister();
 
-// 2) 시스템 구성
-var system = new SkillSystem(myUnitRegistry, myVfxPlayer, mySfxPlayer, UnityCombatLogger.Instance);
-system.LoadFromJson(skillsJson, buffsJson);
+// 2. 데이터 로드
+var skills = new DataBase<SkillData>();
+skills.Load(new JsonDataLoader<SkillData>(() => skillsJson.text));
 
-// 3) 매 프레임 버프 진행
-void Update() => system.Tick(Time.deltaTime);
-
-// 4) 스킬 사용 (즉시 실행)
-SkillUseResult result = system.Use("fire_slash", caster, target);
-
-// 4-2) 캐스팅 시간을 기다리려면 코루틴
-StartCoroutine(system.Runner.UseRoutine("fire_slash", caster, target,
-    r => Debug.Log(r.Status)));
+// 3. 실행
+var ctx = new ReactionContext { Source = caster, Target = target };
+engine.Run("on_use", skills.Get("fire_slash"), ctx);
 ```
 
 ## 에디터 도구
 
-`Tools/Skill Creator` 메뉴:
+`Tools/AchReactive` 메뉴:
 
-- **Skill Editor** — 스킬 목록/추가/삭제/복제/편집, JSON 저장, 검증
-- **Buff Editor** — 버프 목록/스탯·주기 효과 편집, JSON 저장, 검증
-- **Preview Simulator** — 실제 전투 없이 예상 데미지/힐/버프 결과 미리보기
-
-## 지원 타입 (MVP)
-
-| 분류 | 값 |
-| --- | --- |
-| Targeting | `self`, `single_enemy`, `circle`, `cone` |
-| Condition | `always`, `alive`, `chance`, `hp_below`, `hp_above`, `has_buff`, `not_has_buff`, `target_count_above`, `target_count_below` |
-| Effect | `damage`, `heal`, `add_buff`, `remove_buff`, `play_vfx`, `play_sfx` |
-| StackPolicy | `stack`, `ignore`, `replace` |
-| RefreshPolicy | `refresh_duration`, `keep` |
-| StatModifier | `flat`, `percent_add`, `percent_mul` |
+- **Type Designer** — 도메인 데이터 클래스 + CsvMapper 코드 자동 생성
+- **Data Editor** — 리액션 빌더 (트리거/컨디션/이펙트 드롭다운) → JSON 내보내기
 
 ## 라이선스
 

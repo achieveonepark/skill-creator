@@ -454,13 +454,11 @@ Samples~/
 ## 11. 패키지 메타 (확정)
 
 - **같은 repo · 한 패키지**(코어 + 스킬 기본 도메인).
-- **패키지명**: `com.achieve.game-data`
-- **displayName**: `Game Data`
-- **문서 경로**: `docs.somiri.dev/game-data` — `docs~/next.config.mjs`의 `repo` 파라미터와
-  `basePath`를 `game-data`로 변경하고, cording-library aggregator의 배포 경로도 맞춘다.
-- repo 이름(`skill-creator`)은 유지해도 되고 추후 변경 가능 — 패키지명/docs 경로와 반드시
-  일치할 필요는 없으나, 일관성을 위해 변경을 검토한다.
-- `package.json`/docs 갱신은 구현 단계 **M8**에서 일괄 처리한다 (그 전까지 현행 유지).
+- **패키지명**: `com.achieve.reactive` (확정)
+- **displayName**: `AchReactive` (확정)
+- **문서 경로**: `docs.somiri.dev/reactive` (확정)
+- **repo 이름**: `AchReactive` (확정)
+- M8에서 일괄 완료.
 
 ---
 
